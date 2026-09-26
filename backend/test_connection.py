@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
 """
-Тестовый скрипт для проверки подключения к PostgreSQL
+Тест подключения к PostgreSQL
+Запускается ИЗ ПАПКИ backend:
+    cd backend
+    python test_connection.py
 """
 import asyncio
 import sys
-import os
-from pathlib import Path
-
-# Добавить backend в путь для импорта config
-backend_dir = Path(__file__).parent / 'backend'
-sys.path.insert(0, str(backend_dir))
-
-# Импортируем модули
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
-
-# Импортируем config (игнорируем предупреждение анализатора)
-import config  # type: ignore
-settings = config.settings
+from config import settings
 
 
 async def test_connection():
@@ -75,7 +67,7 @@ async def test_connection():
         print(f"Ошибка: {e}")
         print()
         print("Возможные причины:")
-        print("1. Неверный DATABASE_URL в backend/.env")
+        print("1. Неверный DATABASE_URL в .env")
         print("2. PostgreSQL не запущен на сервере")
         print("3. Firewall блокирует порт 5432")
         print("4. Неверный пароль или имя пользователя")

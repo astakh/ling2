@@ -1,30 +1,19 @@
 #!/usr/bin/env python3
 """
-Скрипт для инициализации базы данных PostgreSQL
-Выполняет backend/init_db.sql на удалённом сервере
-
-Использование:
-    python init_database.py
-    python init_database.py --force  # пересоздать таблицы
-    python init_database.py --dry-run  # только показать SQL
+Инициализация базы данных PostgreSQL
+Запускается ИЗ ПАПКИ backend:
+    cd backend
+    python init_db.py
+    python init_db.py --force
+    python init_db.py --dry-run
 """
 import asyncio
 import sys
-import os
 import argparse
 from pathlib import Path
-
-# Добавить backend в путь для импорта config
-backend_dir = Path(__file__).parent / 'backend'
-sys.path.insert(0, str(backend_dir))
-
-# Импортируем модули
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
-
-# Импортируем config (игнорируем предупреждение анализатора)
-import config  # type: ignore
-settings = config.settings
+from config import settings
 
 
 def load_sql_file(filepath: str) -> str:
@@ -42,13 +31,13 @@ async def init_database(force: bool = False, dry_run: bool = False):
     
     # Показать настройки
     print(f"DATABASE_URL: {settings.DATABASE_URL}")
-    print(f"SQL файл: backend/init_db.sql")
+    print(f"SQL файл: init_db.sql")
     print()
     
     # Проверить наличие SQL файла
-    sql_file = Path(__file__).parent / 'backend' / 'init_db.sql'
+    sql_file = Path(__file__).parent / 'init_db.sql'
     if not sql_file.exists():
-        print("✗ Файл backend/init_db.sql не найден!")
+        print("✗ Файл init_db.sql не найден!")
         print()
         return False
     
@@ -80,7 +69,6 @@ async def init_database(force: bool = False, dry_run: bool = False):
         
         async with engine.begin() as conn:
             # Разделить SQL на отдельные команды
-            # Убрать комментарии и пустые строки
             statements = []
             current_statement = []
             
@@ -135,8 +123,8 @@ async def init_database(force: bool = False, dry_run: bool = False):
                 print("=" * 70)
                 print()
                 print("Следующие шаги:")
-                print("1. Запустить backend: cd backend && python main.py")
-                print("2. Запустить frontend: npm run dev")
+                print("1. Запустить backend: python main.py")
+                print("2. В другом терминале запустить frontend: npm run dev")
                 print("3. Открыть http://localhost:5173")
                 print()
                 return True
@@ -151,7 +139,7 @@ async def init_database(force: bool = False, dry_run: bool = False):
         print(f"Ошибка: {e}")
         print()
         print("Возможные причины:")
-        print("1. Неверный DATABASE_URL в backend/.env")
+        print("1. Неверный DATABASE_URL в .env")
         print("2. PostgreSQL не запущен на сервере")
         print("3. Firewall блокирует порт 5432")
         print("4. База данных не создана")
