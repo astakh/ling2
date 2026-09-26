@@ -15,7 +15,7 @@
 
 ### Backend
 - **FastAPI** (async Python API)
-- **PostgreSQL 15+** (база данных)
+- **PostgreSQL 14+** (база данных)
 - **SQLAlchemy 2.0** (async ORM)
 - **OpenAI API** (LLM для генерации предложений и оценки переводов)
 - **Alembic** (миграции)

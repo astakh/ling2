@@ -1,5 +1,5 @@
 -- LingoFlow Database Schema
--- PostgreSQL 15+
+-- PostgreSQL 14+
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (

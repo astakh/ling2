@@ -25,9 +25,9 @@ GRANT ALL PRIVILEGES ON DATABASE lingoflow TO lingoflow;
 
 ## 3. Разрешить удалённые подключения
 
-Отредактировать `/etc/postgresql/15/main/postgresql.conf`:
+Отредактировать `/etc/postgresql/14/main/postgresql.conf`:
 ```bash
-sudo nano /etc/postgresql/15/main/postgresql.conf
+sudo nano /etc/postgresql/14/main/postgresql.conf
 ```
 
 Найти строку `#listen_addresses = 'localhost'` и изменить на:
@@ -35,9 +35,9 @@ sudo nano /etc/postgresql/15/main/postgresql.conf
 listen_addresses = '*'
 ```
 
-Отредактировать `/etc/postgresql/15/main/pg_hba.conf`:
+Отредактировать `/etc/postgresql/14/main/pg_hba.conf`:
 ```bash
-sudo nano /etc/postgresql/15/main/pg_hba.conf
+sudo nano /etc/postgresql/14/main/pg_hba.conf
 ```
 
 Добавить в конец файла:
