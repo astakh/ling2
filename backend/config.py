@@ -21,20 +21,18 @@ class Settings(BaseSettings):
     # GigaChat API
     GIGACHAT_CREDENTIALS: str = ""  # Authorization key для GigaChat
     GIGACHAT_MODEL: str = "GigaChat-2-Max"  # Доступные: GigaChat-2-Max, GigaChat-Plus, GigaChat-Pro, GigaChat-3-Ultra
-    
-    # Admin panel
-    ADMIN_PASSWORD: str = "admin123"  # Пароль для доступа к админке
     GIGACHAT_OAUTH_URL: str = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
     GIGACHAT_API_URL: str = "https://api.giga.chat/v1"
     GIGACHAT_SCOPE: str = "GIGACHAT_API_PERS"  # GIGACHAT_API_PERS, GIGACHAT_API_B2B, GIGACHAT_API_CORP
     
-# Режим работы
+    # Режим работы
     USE_MOCK_LLM: bool = True  # True = использовать моковый LLM без API ключа
     
     # Admin panel
     ADMIN_PASSWORD: str = "admin123"  # Пароль для доступа к админке
 
-    class Config:        env_file = str(ENV_FILE)
+    class Config:
+        env_file = str(ENV_FILE)
         env_file_encoding = "utf-8"
 
 
