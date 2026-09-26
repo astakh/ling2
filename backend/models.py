@@ -1,7 +1,8 @@
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime, ForeignKey, 
-    UniqueConstraint, Index, func, JSON
+    UniqueConstraint, Index, func
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -79,7 +80,7 @@ class DictionaryTranslation(Base):
     id = Column(String(36), primary_key=True)
     dictionary_id = Column(String(36), ForeignKey("dictionaries.id"), nullable=False)
     lang = Column(String(10), nullable=False)
-    translations = Column(JSON, nullable=False)  # Array of translations
+    translations = Column(JSONB, nullable=False)  # Array of translations
     
     dictionary = relationship("Dictionary", back_populates="translations")
     
@@ -140,9 +141,9 @@ class LessonExercise(Base):
     lesson_id = Column(String(36), ForeignKey("lessons.id"), nullable=False)
     order_index = Column(Integer, nullable=False)
     target_sentence = Column(Text, nullable=False)
-    target_word_ids = Column(JSON, nullable=False)  # Array of dictionary IDs
+    target_word_ids = Column(JSONB, nullable=False)  # Array of dictionary IDs
     user_translation = Column(Text, nullable=True)
-    llm_response_json = Column(JSON, nullable=True)
+    llm_response_json = Column(JSONB, nullable=True)
     status = Column(String(20), default="pending")  # pending, completed
     
     lesson = relationship("Lesson", back_populates="exercises")

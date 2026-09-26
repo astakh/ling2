@@ -117,12 +117,10 @@ class LessonService:
         learned_ids = set(result.scalars().all()) | exclude_ids
         
         # Get available words
-        result = await db.execute(
-            select(Dictionary).where(
-                Dictionary.target_lang == target_lang,
-                ~Dictionary.id.in_(learned_ids) if learned_ids else True,
-            ).limit(limit)
-        )
+        query = select(Dictionary).where(Dictionary.target_lang == target_lang)
+        if learned_ids:
+            query = query.where(~Dictionary.id.in_(learned_ids))
+        result = await db.execute(query.limit(limit))
         return list(result.scalars().all())
     
     @staticmethod
