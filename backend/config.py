@@ -18,9 +18,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     
-    # OpenAI API
-    OPENAI_API_KEY: str = ""  # Пусто для тестирования без LLM
-    OPENAI_MODEL: str = "gpt-4o-mini"
+    # GigaChat API
+    GIGACHAT_CREDENTIALS: str = ""  # Authorization key для GigaChat
+    GIGACHAT_MODEL: str = "GigaChat"  # GigaChat, GigaChat-Plus, GigaChat-Pro
+    GIGACHAT_API_URL: str = "https://gigachat.devices.sberbank.ru/api/v1"
     
     # Режим работы
     USE_MOCK_LLM: bool = True  # True = использовать моковый LLM без API ключа
@@ -32,6 +33,6 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Автоматически включить моковый LLM если нет API ключа
-if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "sk-your-openai-api-key-here":
+# Автоматически включить моковый LLM если нет credentials
+if not settings.GIGACHAT_CREDENTIALS or settings.GIGACHAT_CREDENTIALS == "your-gigachat-credentials-here":
     settings.USE_MOCK_LLM = True

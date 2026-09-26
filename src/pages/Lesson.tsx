@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, Loader2, X } from 'lucide-react';
 import { getProfile, getUser } from '../store';
 import { getDictionary } from '../data/dictionaries';
 import { startLesson, submitExerciseTranslation } from '../services/lessonService';
@@ -20,6 +20,7 @@ export default function Lesson() {
   const [exercises, setExercises] = useState<LessonExercise[]>([]);
   const [lesson, setLesson] = useState<any>(null);
   const [targetWords, setTargetWords] = useState<DictionaryWord[]>([]);
+  const [ignoredWords, setIgnoredWords] = useState<Set<string>>(new Set());
   const [initialized, setInitialized] = useState(false);
 
   // Initialize lesson
@@ -96,6 +97,7 @@ export default function Lesson() {
     setShowResult(false);
     setTranslation('');
     setCurrentResult(null);
+    setIgnoredWords(new Set()); // Reset ignored words for next exercise
     
     const nextIndex = exerciseIndex + 1;
     if (nextIndex >= exercises.length) {
@@ -162,14 +164,30 @@ export default function Lesson() {
           </div>
           <div className="flex flex-wrap gap-2">
             {targetWords.map(word => {
-              const translations = word.translations[user?.nativeLang || 'ru'] || [];
+              const isIgnored = ignoredWords.has(word.id);
               return (
                 <div
                   key={word.id}
-                  className="px-3 py-2 bg-white border border-indigo-200 rounded-xl shadow-sm"
+                  className={`relative px-3 py-2 rounded-xl shadow-sm transition-all ${
+                    isIgnored 
+                      ? 'bg-gray-100 border border-gray-200 opacity-50' 
+                      : 'bg-white border border-indigo-200'
+                  }`}
                 >
-                  <div className="font-semibold text-indigo-800">{word.lemma}</div>
-                  <div className="text-xs text-indigo-500">{translations.join(', ')}</div>
+                  <div className={`font-semibold ${isIgnored ? 'text-gray-400 line-through' : 'text-indigo-800'}`}>
+                    {word.lemma}
+                  </div>
+                  {!isIgnored && (
+                    <button
+                      onClick={() => {
+                        setIgnoredWords(prev => new Set([...prev, word.id]));
+                      }}
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-sm"
+                      title="Пометить как выученное"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               );
             })}

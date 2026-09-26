@@ -147,14 +147,49 @@ class MockLLMService:
         }
 
 
-# ==================== REAL LLM ====================
+# ==================== GIGACHAT LLM ====================
 
-class RealLLMService:
-    """Реальный LLM через OpenAI API"""
+class GigaChatService:
+    """LLM через GigaChat API (Сбер)"""
+    
+    _access_token: Optional[str] = None
+    _token_expires_at: float = 0
+    
+    @classmethod
+    async def _get_access_token(cls) -> str:
+        """Получить или обновить токен доступа GigaChat"""
+        import time
+        import httpx
+        
+        # Если токен ещё действителен, вернуть его
+        if cls._access_token and time.time() < cls._token_expires_at - 60:
+            return cls._access_token
+        
+        # Получить новый токен
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Accept": "application/json",
+                    "RqUID": str(uuid.uuid4()),
+                    "Authorization": f"Basic {settings.GIGACHAT_CREDENTIALS}",
+                },
+                data={"scope": "GIGACHAT_API_PERS"},
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            cls._access_token = data["access_token"]
+            cls._token_expires_at = data["expires_at"] / 1000  # Convert to seconds
+            
+            logger.info("[GigaChat] Access token obtained successfully")
+            return cls._access_token
     
     @staticmethod
     async def generate_sentences(word_groups: list, target_lang: str) -> list:
-        """Генерирует предложения через OpenAI API"""
+        """Генерирует предложения через GigaChat API"""
         import httpx
         
         groups_data = []
@@ -163,26 +198,30 @@ class RealLLMService:
                 "words": [{"lemma": w.lemma, "pos": w.pos} for w in group],
             })
         
-        prompt = f"""Generate exactly one natural sentence for each word group below.
-Each sentence must use ALL words from its group (in grammatically correct forms).
-Target language: {target_lang}
-CEFR level: A1-A2 (simple sentences)
+        prompt = f"""Сгенерируй ровно по одному естественному предложению для каждой группы слов ниже.
+Каждое предложение должно использовать ВСЕ слова из своей группы (в грамматически правильных формах).
+Целевой язык: {target_lang}
+Уровень CEFR: A1-A2 (простые предложения)
 
-Word groups:
-{chr(10).join(f'Group {i+1}: {", ".join(w["lemma"] for w in g["words"])}' for i, g in enumerate(groups_data))}
+Группы слов:
+{chr(10).join(f'Группа {i+1}: {", ".join(w["lemma"] for w in g["words"])}' for i, g in enumerate(groups_data))}
 
-Return a JSON array of sentences, one per group:
-["sentence1", "sentence2", ...]"""
+Верни JSON массив предложений, по одному на группу:
+["предложение1", "предложение2", ...]"""
+        
+        token = await GigaChatService._get_access_token()
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
+                f"{settings.GIGACHAT_API_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
                 json={
-                    "model": settings.OPENAI_MODEL,
+                    "model": settings.GIGACHAT_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.7,
-                    "response_format": {"type": "json_object"},
                 },
                 timeout=30.0,
             )
@@ -190,10 +229,21 @@ Return a JSON array of sentences, one per group:
             data = response.json()
             
             content = data["choices"][0]["message"]["content"]
-            sentences = json.loads(content)
-            if isinstance(sentences, dict):
-                sentences = list(sentences.values())[0] if sentences else []
-            return sentences
+            
+            # Попробовать распарсить JSON
+            try:
+                sentences = json.loads(content)
+                if isinstance(sentences, dict):
+                    sentences = list(sentences.values())[0] if sentences else []
+                return sentences
+            except json.JSONDecodeError:
+                # Если не JSON, попробовать извлечь массив из текста
+                import re
+                match = re.search(r'\[.*?\]', content, re.DOTALL)
+                if match:
+                    return json.loads(match.group())
+                # Fallback: разбить по предложениям
+                return [content.strip()]
     
     @staticmethod
     async def evaluate_translation(
@@ -202,43 +252,47 @@ Return a JSON array of sentences, one per group:
         target_words: list,
         native_lang: str
     ) -> dict:
-        """Оценивает перевод через OpenAI API"""
+        """Оценивает перевод через GigaChat API"""
         import httpx
         
         target_words_str = "\n".join(
-            f'- {w["lemma"]} (pos: {w["pos"]})' for w in target_words
+            f'- {w["lemma"]} (часть речи: {w["pos"]})' for w in target_words
         )
         
-        prompt = f"""Evaluate the user's translation focusing ONLY on these target words:
+        prompt = f"""Оцени перевод пользователя, фокусируясь ТОЛЬКО на этих целевых словах:
 
 {target_words_str}
 
-Sentence (target language): "{sentence}"
-User's translation ({native_lang}): "{user_translation}"
+Предложение (целевой язык): "{sentence}"
+Перевод пользователя ({native_lang}): "{user_translation}"
 
-Instructions:
-1. Check if each target word is correctly translated
-2. Apply typo-tolerance: if the user made an obvious typo (1-2 letters off), mark as correct with has_typo=true
-3. Ignore accuracy of non-target words if overall meaning is preserved
+Инструкции:
+1. Проверь, правильно ли переведено каждое целевое слово
+2. Применяй толерантность к опечаткам: если пользователь сделал очевидную опечатку (1-2 буквы), отметь как правильное с has_typo=true
+3. Игнорируй точность перевода нецелевых слов, если общий смысл сохранён
 
-Return JSON:
+Верни JSON:
 {{
     "word_results": [
         {{"word_id": "...", "lemma": "...", "is_correct": true/false, "has_typo": true/false}}
     ],
-    "suggested_new_words": ["word1", "word2"],
+    "suggested_new_words": ["слово1", "слово2"],
     "overall_correct": true/false
 }}"""
         
+        token = await GigaChatService._get_access_token()
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
+                f"{settings.GIGACHAT_API_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
                 json={
-                    "model": settings.OPENAI_MODEL,
+                    "model": settings.GIGACHAT_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.1,
-                    "response_format": {"type": "json_object"},
                 },
                 timeout=30.0,
             )
@@ -246,11 +300,25 @@ Return JSON:
             data = response.json()
             
             content = data["choices"][0]["message"]["content"]
-            return json.loads(content)
+            
+            # Попробовать распарсить JSON
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                # Если не JSON, вернуть дефолтный ответ
+                logger.error(f"[GigaChat] Failed to parse JSON response: {content}")
+                return {
+                    "word_results": [
+                        {"word_id": w["id"], "lemma": w["lemma"], "is_correct": False, "has_typo": False}
+                        for w in target_words
+                    ],
+                    "suggested_new_words": [],
+                    "overall_correct": False,
+                }
 
 
 # Выбрать LLM сервис
-LLMService = MockLLMService if settings.USE_MOCK_LLM else RealLLMService
+LLMService = MockLLMService if settings.USE_MOCK_LLM else GigaChatService
 
 
 # ==================== AUTH ====================
