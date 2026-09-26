@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, BookOpen, Target, TrendingUp, RotateCcw, Loader2, Settings } from 'lucide-react';
 import { getUser, getProfile, getStats, resetAll } from '../store';
 import { startLesson } from '../services/lessonService';
 import { fetchUserWords, fetchStats } from '../services/lessonService';
 import { getDictionary } from '../data/dictionaries';
+import Toast, { ToastType } from '../components/Toast';
 
 const langNames: Record<string, string> = {
   en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ru: 'Русский'
@@ -22,7 +23,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [userWords, setUserWords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   useEffect(() => {
     console.log('[Dashboard] Component mounted, user:', user, 'profile:', profile);
@@ -46,7 +47,7 @@ export default function Dashboard() {
     console.log('[Dashboard] Starting lesson...');
     console.log('[Dashboard] Current user:', user);
     console.log('[Dashboard] Current profile:', profile);
-    setError('');
+    setToast(null);
     
     try {
       const session = await startLesson(true); // force_new=true для генерации новых предложений
@@ -54,7 +55,7 @@ export default function Dashboard() {
       
       if (!session) {
         console.error('[Dashboard] Failed to start lesson');
-        setError('Не удалось начать урок. Попробуйте позже.');
+        setToast({ message: 'Не удалось начать урок. Попробуйте позже.', type: 'error' });
         return;
       }
       
@@ -68,12 +69,12 @@ export default function Dashboard() {
         // Извлекаем сообщение из ошибки
         const match = error.message.match(/Дневной лимит уроков достигнут:.*$/);
         if (match) {
-          setError(match[0]);
+          setToast({ message: match[0], type: 'info' });
         } else {
-          setError('Дневной лимит уроков достигнут. Продолжим завтра!');
+          setToast({ message: 'Дневной лимит уроков достигнут. Продолжим завтра!', type: 'info' });
         }
       } else {
-        setError('Не удалось начать урок. Попробуйте позже.');
+        setToast({ message: 'Не удалось начать урок. Попробуйте позже.', type: 'error' });
       }
     }
   };
@@ -203,15 +204,15 @@ export default function Dashboard() {
           </button>
         </motion.div>
 
-        {error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-center"
-          >
-            {error}
-          </motion.div>
-        )}
+        <AnimatePresence>
+          {toast && (
+            <Toast
+              message={toast.message}
+              type={toast.type}
+              onClose={() => setToast(null)}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Vocabulary link */}
         {userWords.length > 0 && (

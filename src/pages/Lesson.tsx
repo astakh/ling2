@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, Loader2, X } from 'lucide-react';
+import { ArrowLeft, Check, Loader2, X, Plus, CheckCircle } from 'lucide-react';
 import { getProfile, getUser } from '../store';
 import { startLesson, submitExerciseTranslation, completeLesson } from '../services/lessonService';
 import { DictionaryWord, LessonExercise } from '../types';
-import { EvaluationResult, markWordLearned } from '../services/api';
+import { EvaluationResult, markWordLearned, addWord } from '../services/api';
 
 export default function Lesson() {
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ export default function Lesson() {
   const [lesson, setLesson] = useState<any>(null);
   const [targetWords, setTargetWords] = useState<DictionaryWord[]>([]);
   const [ignoredWords, setIgnoredWords] = useState<Set<string>>(new Set());
+  const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
   const [initialized, setInitialized] = useState(false);
 
   // Initialize lesson
@@ -101,6 +102,7 @@ export default function Lesson() {
     setTranslation('');
     setCurrentResult(null);
     setIgnoredWords(new Set()); // Reset ignored words for next exercise
+    setAddedWords(new Set()); // Reset added words for next exercise
     
     const nextIndex = exerciseIndex + 1;
     if (nextIndex >= exercises.length) {
@@ -129,6 +131,22 @@ export default function Lesson() {
       setIgnoredWords(prev => new Set([...prev, dictionaryId]));
     } catch (error) {
       console.error('[Lesson] Failed to mark word as learned:', error);
+    }
+  };
+
+  const handleAddWord = async (dictionaryId: string) => {
+    if (!profile) return;
+    
+    console.log('[Lesson] Adding word to dictionary:', dictionaryId);
+    
+    try {
+      await addWord(profile.id, dictionaryId, 'active');
+      console.log('[Lesson] Word added successfully');
+      
+      // Update local state
+      setAddedWords(prev => new Set([...prev, dictionaryId]));
+    } catch (error) {
+      console.error('[Lesson] Failed to add word:', error);
     }
   };
 
@@ -352,6 +370,58 @@ export default function Lesson() {
                     );
                   })}
                 </div>
+
+                {/* Suggested new words */}
+                {currentResult?.suggested_new_words && currentResult.suggested_new_words.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-xl"
+                  >
+                    <div className="text-sm font-semibold text-purple-800 mb-3">
+                      💡 Хотите добавить эти слова в словарь?
+                    </div>
+                    <div className="space-y-2">
+                      {currentResult.suggested_new_words.map((wordId, index) => {
+                        const isAdded = addedWords.has(wordId);
+                        return (
+                          <motion.div
+                            key={wordId}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-100"
+                          >
+                            <div className="flex-1">
+                              <span className="font-medium text-gray-800">{wordId}</span>
+                            </div>
+                            <button
+                              onClick={() => handleAddWord(wordId)}
+                              disabled={isAdded}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
+                                isAdded
+                                  ? 'bg-green-100 text-green-700 cursor-default'
+                                  : 'bg-purple-500 text-white hover:bg-purple-600'
+                              }`}
+                            >
+                              {isAdded ? (
+                                <>
+                                  <CheckCircle className="w-4 h-4" />
+                                  Добавлено
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4" />
+                                  Добавить
+                                </>
+                              )}
+                            </button>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
               </div>
 
               <button
