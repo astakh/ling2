@@ -7,6 +7,7 @@ from typing import Optional, List
 import uuid
 import json
 import logging
+import urllib3
 from datetime import datetime, date
 
 from database import get_db, init_db
@@ -23,6 +24,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Подавить предупреждения о SSL (для самоподписанных сертификатов Сбера)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 app = FastAPI(title="LingoFlow API", version="1.0.0")
 
 # CORS
@@ -38,6 +42,23 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     await init_db()
+    
+    # Проверка конфигурации GigaChat
+    if not settings.USE_MOCK_LLM:
+        logger.info("=" * 70)
+        logger.info("GigaChat API Configuration:")
+        logger.info(f"  Model: {settings.GIGACHAT_MODEL}")
+        logger.info(f"  OAuth URL: {settings.GIGACHAT_OAUTH_URL}")
+        logger.info(f"  API URL: {settings.GIGACHAT_API_URL}")
+        logger.info(f"  Scope: {settings.GIGACHAT_SCOPE}")
+        logger.info("=" * 70)
+        logger.warning("⚠️  Using GigaChat API (real LLM)")
+        logger.warning("⚠️  SSL verification disabled (verify=False) for Sber certificates")
+    else:
+        logger.info("=" * 70)
+        logger.info("Using Mock LLM (no API calls)")
+        logger.info("To use GigaChat, set GIGACHAT_CREDENTIALS in backend/.env")
+        logger.info("=" * 70)
 
 
 # ==================== SCHEMAS ====================
@@ -150,46 +171,65 @@ class MockLLMService:
 # ==================== GIGACHAT LLM ====================
 
 class GigaChatService:
-    """LLM через GigaChat API (Сбер)"""
+    """LLM через GigaChat API (Сбер)
+    
+    Документация: https://developers.sber.ru/docs/ru/gigachat/api/reference/rest/post-token
+    """
     
     _access_token: Optional[str] = None
-    _token_expires_at: float = 0
+    _token_expires_at: float = 0  # В секундах
     
     @classmethod
     async def _get_access_token(cls) -> str:
-        """Получить или обновить токен доступа GigaChat"""
+        """Получить или обновить токен доступа GigaChat
+        
+        POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth
+        Токен действителен 30 минут
+        """
         import time
         import httpx
         
-        # Если токен ещё действителен, вернуть его
-        if cls._access_token and time.time() < cls._token_expires_at - 60:
+        # Если токен ещё действителен (с запасом 60 сек), вернуть его
+        current_time = time.time()
+        if cls._access_token and current_time < cls._token_expires_at - 60:
+            logger.debug(f"[GigaChat] Using cached token, expires in {int(cls._token_expires_at - current_time)}s")
             return cls._access_token
         
         # Получить новый токен
-        async with httpx.AsyncClient() as client:
+        logger.info("[GigaChat] Requesting new access token...")
+        
+        async with httpx.AsyncClient(verify=False) as client:  # verify=False для самоподписанного сертификата Сбера
             response = await client.post(
-                "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+                settings.GIGACHAT_OAUTH_URL,
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",
                     "Accept": "application/json",
                     "RqUID": str(uuid.uuid4()),
                     "Authorization": f"Basic {settings.GIGACHAT_CREDENTIALS}",
                 },
-                data={"scope": "GIGACHAT_API_PERS"},
+                data={"scope": settings.GIGACHAT_SCOPE},
                 timeout=30.0,
             )
-            response.raise_for_status()
+            
+            if response.status_code != 200:
+                logger.error(f"[GigaChat] Token request failed: {response.status_code} - {response.text}")
+                response.raise_for_status()
+            
             data = response.json()
             
             cls._access_token = data["access_token"]
-            cls._token_expires_at = data["expires_at"] / 1000  # Convert to seconds
+            # expires_at приходит в миллисекундах, конвертируем в секунды
+            cls._token_expires_at = data["expires_at"] / 1000
             
-            logger.info("[GigaChat] Access token obtained successfully")
+            logger.info(f"[GigaChat] Access token obtained successfully, expires at {datetime.fromtimestamp(cls._token_expires_at)}")
             return cls._access_token
     
     @staticmethod
     async def generate_sentences(word_groups: list, target_lang: str) -> list:
-        """Генерирует предложения через GigaChat API"""
+        """Генерирует предложения через GigaChat API
+        
+        POST https://api.giga.chat/v1/chat/completions
+        """
         import httpx
         
         groups_data = []
@@ -206,44 +246,69 @@ class GigaChatService:
 Группы слов:
 {chr(10).join(f'Группа {i+1}: {", ".join(w["lemma"] for w in g["words"])}' for i, g in enumerate(groups_data))}
 
-Верни JSON массив предложений, по одному на группу:
+Верни ТОЛЬКО JSON массив предложений, по одному на группу, без дополнительного текста:
 ["предложение1", "предложение2", ...]"""
         
         token = await GigaChatService._get_access_token()
         
-        async with httpx.AsyncClient() as client:
+        logger.info(f"[GigaChat] Generating sentences for {len(word_groups)} word groups")
+        
+        async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 f"{settings.GIGACHAT_API_URL}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "User-Agent": "LingoFlow/1.0",
                 },
                 json={
                     "model": settings.GIGACHAT_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": [
+                        {"role": "system", "content": "Ты — лингвистический AI-ассистент. Отвечай строго в формате JSON без дополнительного текста."},
+                        {"role": "user", "content": prompt}
+                    ],
                     "temperature": 0.7,
+                    "max_tokens": 500,
                 },
                 timeout=30.0,
             )
-            response.raise_for_status()
-            data = response.json()
             
+            if response.status_code != 200:
+                logger.error(f"[GigaChat] Generate sentences failed: {response.status_code} - {response.text}")
+                response.raise_for_status()
+            
+            data = response.json()
             content = data["choices"][0]["message"]["content"]
+            
+            logger.debug(f"[GigaChat] Raw response: {content}")
             
             # Попробовать распарсить JSON
             try:
                 sentences = json.loads(content)
                 if isinstance(sentences, dict):
+                    # Если вернулся объект, взять первое значение
                     sentences = list(sentences.values())[0] if sentences else []
-                return sentences
+                if isinstance(sentences, list):
+                    logger.info(f"[GigaChat] Generated {len(sentences)} sentences")
+                    return sentences
             except json.JSONDecodeError:
-                # Если не JSON, попробовать извлечь массив из текста
-                import re
-                match = re.search(r'\[.*?\]', content, re.DOTALL)
-                if match:
-                    return json.loads(match.group())
-                # Fallback: разбить по предложениям
-                return [content.strip()]
+                pass
+            
+            # Если не JSON, попробовать извлечь массив из текста
+            import re
+            match = re.search(r'\[.*?\]', content, re.DOTALL)
+            if match:
+                try:
+                    sentences = json.loads(match.group())
+                    logger.info(f"[GigaChat] Extracted {len(sentences)} sentences from text")
+                    return sentences
+                except json.JSONDecodeError:
+                    pass
+            
+            # Fallback: разбить по предложениям
+            logger.warning("[GigaChat] Could not parse JSON, using fallback")
+            return [content.strip()]
     
     @staticmethod
     async def evaluate_translation(
@@ -252,11 +317,14 @@ class GigaChatService:
         target_words: list,
         native_lang: str
     ) -> dict:
-        """Оценивает перевод через GigaChat API"""
+        """Оценивает перевод через GigaChat API
+        
+        POST https://api.giga.chat/v1/chat/completions
+        """
         import httpx
         
         target_words_str = "\n".join(
-            f'- {w["lemma"]} (часть речи: {w["pos"]})' for w in target_words
+            f'- word_id: {w["id"]}, lemma: {w["lemma"]}, часть речи: {w["pos"]}' for w in target_words
         )
         
         prompt = f"""Оцени перевод пользователя, фокусируясь ТОЛЬКО на этих целевых словах:
@@ -270,51 +338,80 @@ class GigaChatService:
 1. Проверь, правильно ли переведено каждое целевое слово
 2. Применяй толерантность к опечаткам: если пользователь сделал очевидную опечатку (1-2 буквы), отметь как правильное с has_typo=true
 3. Игнорируй точность перевода нецелевых слов, если общий смысл сохранён
+4. В поле word_id используй ТОЧНЫЕ ID из списка выше
 
-Верни JSON:
+Верни ТОЛЬКО JSON без дополнительного текста в формате:
 {{
     "word_results": [
-        {{"word_id": "...", "lemma": "...", "is_correct": true/false, "has_typo": true/false}}
+        {{"word_id": "точное_id_из_списка", "lemma": "слово", "is_correct": true, "has_typo": false}}
     ],
-    "suggested_new_words": ["слово1", "слово2"],
-    "overall_correct": true/false
+    "suggested_new_words": [],
+    "overall_correct": true
 }}"""
         
         token = await GigaChatService._get_access_token()
         
-        async with httpx.AsyncClient() as client:
+        logger.info(f"[GigaChat] Evaluating translation for {len(target_words)} target words")
+        
+        async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 f"{settings.GIGACHAT_API_URL}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "User-Agent": "LingoFlow/1.0",
                 },
                 json={
                     "model": settings.GIGACHAT_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": [
+                        {"role": "system", "content": "Ты — лингвистический AI-ассистент. Отвечай строго в формате JSON без дополнительного текста."},
+                        {"role": "user", "content": prompt}
+                    ],
                     "temperature": 0.1,
+                    "max_tokens": 500,
                 },
                 timeout=30.0,
             )
-            response.raise_for_status()
-            data = response.json()
             
+            if response.status_code != 200:
+                logger.error(f"[GigaChat] Evaluate translation failed: {response.status_code} - {response.text}")
+                response.raise_for_status()
+            
+            data = response.json()
             content = data["choices"][0]["message"]["content"]
+            
+            logger.debug(f"[GigaChat] Raw evaluation response: {content}")
             
             # Попробовать распарсить JSON
             try:
-                return json.loads(content)
+                result = json.loads(content)
+                logger.info(f"[GigaChat] Translation evaluated, overall_correct: {result.get('overall_correct')}")
+                return result
             except json.JSONDecodeError:
-                # Если не JSON, вернуть дефолтный ответ
-                logger.error(f"[GigaChat] Failed to parse JSON response: {content}")
-                return {
-                    "word_results": [
-                        {"word_id": w["id"], "lemma": w["lemma"], "is_correct": False, "has_typo": False}
-                        for w in target_words
-                    ],
-                    "suggested_new_words": [],
-                    "overall_correct": False,
-                }
+                pass
+            
+            # Если не JSON, попробовать извлечь JSON из текста
+            import re
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                try:
+                    result = json.loads(match.group())
+                    logger.info(f"[GigaChat] Extracted JSON from text")
+                    return result
+                except json.JSONDecodeError:
+                    pass
+            
+            # Fallback: вернуть дефолтный ответ
+            logger.warning("[GigaChat] Could not parse JSON, returning default response")
+            return {
+                "word_results": [
+                    {"word_id": w["id"], "lemma": w["lemma"], "is_correct": False, "has_typo": False}
+                    for w in target_words
+                ],
+                "suggested_new_words": [],
+                "overall_correct": False,
+            }
 
 
 # Выбрать LLM сервис
