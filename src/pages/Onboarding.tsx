@@ -1,97 +1,209 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Globe, Clock, ChevronRight } from 'lucide-react';
-import { createUser, createProfile, createStats, saveUser, saveProfile, saveStats } from '../store';
+import { ChevronRight, Loader2 } from 'lucide-react';
+import { registerUser, setupProfile } from '../services/api';
+import { saveUser, saveProfile } from '../store';
 import { Language, CEFRLevel } from '../types';
 
 const languages = [
-  { code: 'en', name: 'English', flag: '🇬🇧', native: 'English' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪', native: 'German' },
-  { code: 'es', name: 'Español', flag: '🇪🇸', native: 'Spanish' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷', native: 'French' },
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+];
+
+const nativeLanguages = [
+  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'uk', name: 'Українська', flag: '🇺🇦' },
 ];
 
 const levels: { code: CEFRLevel; name: string; desc: string }[] = [
   { code: 'A1', name: 'A1 — Beginner', desc: 'Базовые фразы и слова' },
   { code: 'A2', name: 'A2 — Elementary', desc: 'Простые диалоги' },
-  { code: 'B1', name: 'B1 — Intermediate', desc: 'Свободное общение на простые темы' },
-  { code: 'B2', name: 'B2 — Upper-Int', desc: 'Сложные тексты и дискуссии' },
+  { code: 'B1', name: 'B1 — Intermediate', desc: 'Свободное общение' },
+  { code: 'B2', name: 'B2 — Upper-Int', desc: 'Сложные тексты' },
+];
+
+const intensities = [
+  { value: 3, name: 'Лёгкая', desc: '3 слова за урок', emoji: '🌱' },
+  { value: 5, name: 'Средняя', desc: '5 слов за урок', emoji: '🌿' },
+  { value: 7, name: 'Интенсивная', desc: '7 слов за урок', emoji: '🌳' },
+  { value: 10, name: 'Максимальная', desc: '10 слов за урок', emoji: '🔥' },
 ];
 
 export default function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  // Step 1: Name & Email
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [userId, setUserId] = useState('');
+  
+  // Step 2: Native Language
   const [nativeLang, setNativeLang] = useState<Language>('ru');
+  
+  // Step 3: Target Language
   const [targetLang, setTargetLang] = useState<Language>('en');
+  
+  // Step 4: Level
   const [level, setLevel] = useState<CEFRLevel>('A1');
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  
+  // Step 5: Intensity
+  const [intensity, setIntensity] = useState(5);
 
-  const handleComplete = () => {
-    const user = createUser(name || 'User', email || 'user@example.com', nativeLang, timezone);
-    const profile = createProfile(user.id, targetLang, level);
-    const stats = createStats(user.id);
+  const handleRegister = async () => {
+    if (!name.trim() || !email.trim()) {
+      setError('Заполните все поля');
+      return;
+    }
     
-    saveUser(user);
-    saveProfile(profile);
-    saveStats(stats);
+    setLoading(true);
+    setError('');
     
-    navigate('/dashboard');
+    try {
+      const user = await registerUser(name, email);
+      setUserId(user.id);
+      saveUser({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        nativeLang: 'ru',
+        timezone: 'UTC',
+        createdAt: new Date().toISOString(),
+      });
+      setStep(1);
+    } catch (err) {
+      setError('Ошибка регистрации. Попробуйте другой email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const profile = await setupProfile(
+        userId,
+        nativeLang,
+        targetLang,
+        level,
+        intensity
+      );
+      
+      saveProfile({
+        id: profile.id,
+        userId: profile.user_id,
+        targetLang: profile.target_lang as Language,
+        cefrLevel: profile.cefr_level as CEFRLevel,
+        currentLessonNumber: profile.current_lesson_number,
+        wordsPerLessonLimit: profile.words_per_lesson_limit,
+        dailyLessonLimit: profile.daily_lesson_limit,
+        createdAt: new Date().toISOString(),
+      });
+      
+      navigate('/dashboard');
+    } catch (err) {
+      setError('Ошибка сохранения профиля. Попробуйте снова.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const steps = [
-    // Step 0: Welcome
+    // Step 0: Welcome + Name & Email
     <motion.div
       key="welcome"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="text-center space-y-8"
+      className="space-y-6 max-w-sm mx-auto"
     >
-      <div className="text-7xl mb-4">📚</div>
-      <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-        LingoFlow
-      </h1>
-      <p className="text-xl text-gray-600 max-w-md mx-auto">
-        Учи слова в контексте живых предложений. Умные интервалы повторения.
-      </p>
-      <button
-        onClick={() => setStep(1)}
-        className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
-      >
-        Начать <ChevronRight className="inline w-5 h-5" />
-      </button>
+      <div className="text-center space-y-4 mb-8">
+        <div className="text-7xl">📚</div>
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+          LingoFlow
+        </h1>
+        <p className="text-lg text-gray-600">
+          Учи слова в контексте живых предложений
+        </p>
+      </div>
+      
+      <div className="space-y-4">
+        <input
+          type="text"
+          placeholder="Ваше имя"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none transition-colors text-lg"
+        />
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none transition-colors text-lg"
+        />
+        
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+            {error}
+          </div>
+        )}
+        
+        <button
+          onClick={handleRegister}
+          disabled={!name.trim() || !email.trim() || loading}
+          className="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Регистрация...
+            </>
+          ) : (
+            <>
+              Начать <ChevronRight className="w-5 h-5" />
+            </>
+          )}
+        </button>
+      </div>
     </motion.div>,
 
-    // Step 1: Name & Email
+    // Step 1: Native Language
     <motion.div
-      key="info"
+      key="native"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="space-y-6 max-w-sm mx-auto"
+      className="space-y-6 max-w-md mx-auto"
     >
-      <h2 className="text-2xl font-bold text-center text-gray-800">Как тебя зовут?</h2>
-      <input
-        type="text"
-        placeholder="Имя"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none transition-colors text-lg"
-      />
-      <input
-        type="email"
-        placeholder="Email (необязательно)"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none transition-colors text-lg"
-      />
+      <h2 className="text-2xl font-bold text-center text-gray-800">Ваш родной язык?</h2>
+      <div className="grid grid-cols-1 gap-3">
+        {nativeLanguages.map(lang => (
+          <button
+            key={lang.code}
+            onClick={() => setNativeLang(lang.code as Language)}
+            className={`p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
+              nativeLang === lang.code
+                ? 'border-indigo-500 bg-indigo-50 shadow-md scale-105'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <span className="text-3xl">{lang.flag}</span>
+            <span className="font-semibold text-gray-800 text-lg">{lang.name}</span>
+          </button>
+        ))}
+      </div>
       <button
         onClick={() => setStep(2)}
-        disabled={!name.trim()}
-        className="w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
       >
         Далее
       </button>
@@ -119,7 +231,6 @@ export default function Onboarding() {
           >
             <div className="text-3xl mb-1">{lang.flag}</div>
             <div className="font-semibold text-gray-800">{lang.name}</div>
-            <div className="text-sm text-gray-500">{lang.native}</div>
           </button>
         ))}
       </div>
@@ -139,7 +250,7 @@ export default function Onboarding() {
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6 max-w-md mx-auto"
     >
-      <h2 className="text-2xl font-bold text-center text-gray-800">Твой уровень?</h2>
+      <h2 className="text-2xl font-bold text-center text-gray-800">Ваш уровень?</h2>
       <div className="space-y-3">
         {levels.map(l => (
           <button
@@ -157,10 +268,62 @@ export default function Onboarding() {
         ))}
       </div>
       <button
-        onClick={handleComplete}
-        className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
+        onClick={() => setStep(4)}
+        className="w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
       >
-        🚀 Начать обучение!
+        Далее
+      </button>
+    </motion.div>,
+
+    // Step 4: Intensity
+    <motion.div
+      key="intensity"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6 max-w-md mx-auto"
+    >
+      <h2 className="text-2xl font-bold text-center text-gray-800">Интенсивность обучения</h2>
+      <p className="text-center text-gray-500">Сколько слов учить за один урок?</p>
+      <div className="space-y-3">
+        {intensities.map(i => (
+          <button
+            key={i.value}
+            onClick={() => setIntensity(i.value)}
+            className={`w-full p-4 rounded-xl border-2 text-left transition-all flex items-center gap-3 ${
+              intensity === i.value
+                ? 'border-indigo-500 bg-indigo-50 shadow-md'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <span className="text-2xl">{i.emoji}</span>
+            <div className="flex-1">
+              <div className="font-semibold text-gray-800">{i.name}</div>
+              <div className="text-sm text-gray-500">{i.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+      
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+      
+      <button
+        onClick={handleComplete}
+        disabled={loading}
+        className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Сохранение...
+          </>
+        ) : (
+          <>🚀 Начать обучение!</>
+        )}
       </button>
     </motion.div>,
   ];

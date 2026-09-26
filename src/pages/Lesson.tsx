@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Check, Loader2 } from 'lucide-react';
-import { getProfile, getUser, getInProgressLesson, getExercises, saveExercise } from '../store';
+import { getProfile, getUser } from '../store';
 import { getDictionary } from '../data/dictionaries';
-import { evaluateTranslation } from '../services/llmService';
-import { updateWordStages, completeLesson } from '../services/lessonService';
-import { DictionaryWord, LLMResponse, LessonExercise } from '../types';
+import { startLesson, submitExerciseTranslation } from '../services/lessonService';
+import { DictionaryWord, LessonExercise } from '../types';
+import { EvaluationResult } from '../services/api';
 
 export default function Lesson() {
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ export default function Lesson() {
   const user = getUser();
   const [translation, setTranslation] = useState('');
   const [loading, setLoading] = useState(false);
-  const [currentResult, setCurrentResult] = useState<LLMResponse | null>(null);
+  const [currentResult, setCurrentResult] = useState<EvaluationResult | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(-1);
   const [exercises, setExercises] = useState<LessonExercise[]>([]);
@@ -24,31 +24,21 @@ export default function Lesson() {
 
   // Initialize lesson
   useEffect(() => {
-    const inProgress = getInProgressLesson();
-    if (!inProgress) {
+    loadLesson();
+  }, []);
+
+  const loadLesson = async () => {
+    const session = await startLesson();
+    if (!session) {
       navigate('/dashboard');
       return;
     }
-    setLesson(inProgress);
     
-    const exs = getExercises(inProgress.id);
-    setExercises(exs);
-    
-    // Find first pending exercise
-    const pendingIndex = exs.findIndex(e => e.status === 'pending');
-    if (pendingIndex === -1) {
-      // All exercises completed
-      const correctCount = exs.reduce((acc, ex) => {
-        if (ex.llmResponse?.overallCorrect) return acc + 1;
-        return acc + (ex.llmResponse?.wordResults?.filter((w: any) => w.isCorrect).length || 0);
-      }, 0);
-      completeLesson(inProgress.id, correctCount, 0);
-      navigate('/complete');
-      return;
-    }
-    setExerciseIndex(pendingIndex);
+    setLesson(session.lesson);
+    setExercises(session.exercises);
+    setExerciseIndex(session.currentExerciseIndex);
     setInitialized(true);
-  }, []);
+  };
 
   // Update target words when exercise changes
   useEffect(() => {
@@ -66,41 +56,33 @@ export default function Lesson() {
 
   const currentExercise = exerciseIndex >= 0 ? exercises[exerciseIndex] : null;
 
-  const handleCheck = useCallback(async () => {
+  const handleCheck = async () => {
     if (!translation.trim() || !currentExercise || !profile || !user || !lesson) return;
     
     setLoading(true);
     
-    // Simulate LLM delay
-    await new Promise(resolve => setTimeout(resolve, 600 + Math.random() * 400));
+    // Submit translation via API
+    const result = await submitExerciseTranslation(currentExercise.id, translation);
     
-    const result = evaluateTranslation(
-      currentExercise.targetSentence,
-      translation,
-      targetWords,
-      user.nativeLang
-    );
+    if (result) {
+      setCurrentResult(result);
+      setShowResult(true);
+      
+      // Update exercise locally
+      const updatedExercise: LessonExercise = {
+        ...currentExercise,
+        userTranslation: translation,
+        llmResponse: result as any,
+        status: 'completed',
+      };
+      
+      const newExercises = [...exercises];
+      newExercises[exerciseIndex] = updatedExercise;
+      setExercises(newExercises);
+    }
     
-    setCurrentResult(result);
-    setShowResult(true);
     setLoading(false);
-    
-    // Update exercise locally and in store
-    const updatedExercise = {
-      ...currentExercise,
-      userTranslation: translation,
-      llmResponse: result,
-      status: 'completed' as const,
-    };
-    
-    const newExercises = [...exercises];
-    newExercises[exerciseIndex] = updatedExercise;
-    setExercises(newExercises);
-    saveExercise(updatedExercise);
-    
-    // Update word stages
-    updateWordStages(profile.id, result.wordResults);
-  }, [translation, currentExercise, targetWords, profile, user, lesson, exercises, exerciseIndex]);
+  };
 
   const handleNext = () => {
     setShowResult(false);
@@ -110,13 +92,6 @@ export default function Lesson() {
     const nextIndex = exerciseIndex + 1;
     if (nextIndex >= exercises.length) {
       // All exercises done
-      const correctCount = exercises.reduce((acc, ex) => {
-        const resp = ex.id === currentExercise?.id ? currentResult : ex.llmResponse;
-        if (resp?.overallCorrect) return acc + 1;
-        return acc + (resp?.wordResults?.filter((w: any) => w.isCorrect).length || 0);
-      }, 0);
-      
-      completeLesson(lesson.id, correctCount, 0);
       navigate('/complete');
     } else {
       setExerciseIndex(nextIndex);
@@ -144,7 +119,7 @@ export default function Lesson() {
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => {
-              if (confirm('Выйти из урока? Прогресс будет потерян.')) {
+              if (confirm('Выйти из урока? Прогресс будет сохранён.')) {
                 navigate('/dashboard');
               }
             }}
@@ -259,12 +234,12 @@ export default function Lesson() {
             >
               {/* Result card */}
               <div className={`rounded-2xl p-6 border-2 ${
-                currentResult?.overallCorrect 
+                currentResult?.overall_correct 
                   ? 'bg-green-50 border-green-200' 
                   : 'bg-orange-50 border-orange-200'
               }`}>
                 <div className="text-xl font-bold mb-4 flex items-center gap-2">
-                  {currentResult?.overallCorrect ? (
+                  {currentResult?.overall_correct ? (
                     <><span className="text-2xl">✅</span> Отлично!</>
                   ) : (
                     <><span className="text-2xl">⚠️</span> Есть что исправить</>
@@ -278,24 +253,24 @@ export default function Lesson() {
 
                 {/* Word results */}
                 <div className="space-y-2">
-                  {currentResult?.wordResults.map(wr => {
-                    const word = targetWords.find(w => w.id === wr.wordId);
+                  {currentResult?.word_results.map(wr => {
+                    const word = targetWords.find(w => w.id === wr.word_id);
                     const translations = word?.translations[user?.nativeLang || 'ru'] || [];
                     return (
                       <motion.div
-                        key={wr.wordId}
+                        key={wr.word_id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
-                          wr.hasTypo 
+                          wr.has_typo 
                             ? 'bg-yellow-100 border border-yellow-300'
-                            : wr.isCorrect 
+                            : wr.is_correct 
                               ? 'bg-green-100 border border-green-300'
                               : 'bg-red-100 border border-red-300'
                         }`}
                       >
                         <span className="text-xl">
-                          {wr.hasTypo ? '🟡' : wr.isCorrect ? '🟢' : '🔴'}
+                          {wr.has_typo ? '🟡' : wr.is_correct ? '🟢' : '🔴'}
                         </span>
                         <div className="flex-1">
                           <span className="font-semibold text-gray-800">{wr.lemma}</span>
@@ -303,12 +278,12 @@ export default function Lesson() {
                             → {translations.join(', ')}
                           </span>
                         </div>
-                        {wr.hasTypo && (
+                        {wr.has_typo && (
                           <span className="text-xs text-yellow-700 bg-yellow-200 px-2 py-0.5 rounded-full">
                             опечатка
                           </span>
                         )}
-                        {!wr.isCorrect && !wr.hasTypo && (
+                        {!wr.is_correct && !wr.has_typo && (
                           <span className="text-xs text-red-700 bg-red-200 px-2 py-0.5 rounded-full">
                             ошибка
                           </span>

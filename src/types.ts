@@ -33,6 +33,23 @@ export interface UserStats {
   totalLessonsCompleted: number;
 }
 
+// Aliases for API compatibility
+export type Profile = UserLanguageProfile;
+export type Stats = UserStats;
+
+export interface EvaluationResult {
+  word_results: WordResult[];
+  suggested_new_words: string[];
+  overall_correct: boolean;
+}
+
+export interface WordResult {
+  word_id: string;
+  lemma: string;
+  is_correct: boolean;
+  has_typo: boolean;
+}
+
 export interface DictionaryWord {
   id: string;
   targetLang: Language;

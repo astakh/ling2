@@ -2,21 +2,16 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Trophy, ArrowRight, Flame, BookOpen, Target } from 'lucide-react';
-import { getStats, getLessons, getUserWords } from '../store';
+import { ArrowRight, Flame, BookOpen, Target } from 'lucide-react';
+import { getStats } from '../store';
+import { fetchStats } from '../services/lessonService';
 
 export default function LessonComplete() {
   const navigate = useNavigate();
-  const stats = getStats();
-  const lessons = getLessons();
-  const userWords = getUserWords();
-  const [lastLesson, setLastLesson] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    const completed = lessons.filter(l => l.status === 'completed');
-    if (completed.length > 0) {
-      setLastLesson(completed[completed.length - 1]);
-    }
+    loadStats();
     
     // Fire confetti
     const duration = 2000;
@@ -45,6 +40,11 @@ export default function LessonComplete() {
     frame();
   }, []);
 
+  const loadStats = async () => {
+    const statsData = await fetchStats();
+    setStats(statsData);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <motion.div
@@ -68,33 +68,29 @@ export default function LessonComplete() {
         </div>
 
         {/* Stats */}
-        {lastLesson && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target className="w-5 h-5 text-green-500" />
-                <span className="text-gray-600">Слова</span>
-              </div>
-              <span className="font-bold text-gray-800">
-                {lastLesson.correctWords}/{lastLesson.totalWords}
-              </span>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-blue-500" />
+              <span className="text-gray-600">Уроков пройдено</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-blue-500" />
-                <span className="text-gray-600">Урок #</span>
-              </div>
-              <span className="font-bold text-gray-800">{lastLesson.lessonNumber}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Flame className="w-5 h-5 text-orange-500" />
-                <span className="text-gray-600">Стрик</span>
-              </div>
-              <span className="font-bold text-gray-800">{stats?.currentStreak || 1} дн.</span>
-            </div>
+            <span className="font-bold text-gray-800">{stats?.total_lessons_completed || 0}</span>
           </div>
-        )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-green-500" />
+              <span className="text-gray-600">Слов изучено</span>
+            </div>
+            <span className="font-bold text-gray-800">{stats?.total_words_learned || 0}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Flame className="w-5 h-5 text-orange-500" />
+              <span className="text-gray-600">Стрик</span>
+            </div>
+            <span className="font-bold text-gray-800">{stats?.current_streak || 0} дн.</span>
+          </div>
+        </div>
 
         {/* Action buttons */}
         <div className="space-y-3">

@@ -35,15 +35,15 @@ async def startup():
 # ==================== SCHEMAS ====================
 
 class RegisterRequest(BaseModel):
-    email: str
-    password: str
     name: str
-    native_lang: str
-    timezone: str
+    email: str
 
-class ProfileSetupRequest(BaseModel):
+class SetupProfileRequest(BaseModel):
+    user_id: str
+    native_lang: str
     target_lang: str
     cefr_level: str
+    words_per_lesson_limit: int = 5
 
 class StartLessonRequest(BaseModel):
     profile_id: str
@@ -252,21 +252,20 @@ class AuthService:
     async def register(db: AsyncSession, req: RegisterRequest) -> User:
         # Check if user exists
         result = await db.execute(select(User).where(User.email == req.email))
-        if result.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Email already registered")
+        existing_user = result.scalar_one_or_none()
         
-        # Hash password
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"])
-        password_hash = pwd_context.hash(req.password)
+        if existing_user:
+            # Return existing user (allow re-login)
+            return existing_user
         
+        # Create new user (simplified - no password for now)
         user = User(
             id=str(uuid.uuid4()),
             email=req.email,
-            password_hash=password_hash,
+            password_hash="",  # Simplified auth
             name=req.name,
-            native_lang=req.native_lang,
-            timezone=req.timezone,
+            native_lang="",  # Will be set during profile setup
+            timezone="UTC",
         )
         db.add(user)
         await db.flush()
@@ -446,13 +445,59 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     user = await AuthService.register(db, req)
     return user
 
+@app.get("/api/user/{user_id}", response_model=UserResponse)
+async def get_user(user_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@app.get("/api/user/{user_id}/profile")
+async def get_user_profile(user_id: str, db: AsyncSession = Depends(get_db)):
+    """Get the first (or only) profile for a user"""
+    result = await db.execute(
+        select(UserLanguageProfile).where(UserLanguageProfile.user_id == user_id)
+    )
+    profile = result.scalars().first()
+    if not profile:
+        return None
+    return profile
+
 @app.post("/api/profile/setup", response_model=ProfileResponse)
-async def setup_profile(req: ProfileSetupRequest, user_id: str = "", db: AsyncSession = Depends(get_db)):
+async def setup_profile(req: SetupProfileRequest, db: AsyncSession = Depends(get_db)):
+    # Get user
+    result = await db.execute(select(User).where(User.id == req.user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update user's native language
+    user.native_lang = req.native_lang
+    await db.flush()
+    
+    # Check if profile already exists
+    result = await db.execute(
+        select(UserLanguageProfile).where(
+            UserLanguageProfile.user_id == req.user_id,
+            UserLanguageProfile.target_lang == req.target_lang
+        )
+    )
+    existing_profile = result.scalar_one_or_none()
+    if existing_profile:
+        # Update existing profile
+        existing_profile.cefr_level = req.cefr_level
+        existing_profile.words_per_lesson_limit = req.words_per_lesson_limit
+        await db.flush()
+        return existing_profile
+    
+    # Create new profile
     profile = UserLanguageProfile(
         id=str(uuid.uuid4()),
-        user_id=user_id,
+        user_id=req.user_id,
         target_lang=req.target_lang,
         cefr_level=req.cefr_level,
+        words_per_lesson_limit=req.words_per_lesson_limit,
     )
     db.add(profile)
     await db.flush()

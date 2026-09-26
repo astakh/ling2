@@ -1,31 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Search, Filter } from 'lucide-react';
-import { getUserWords, getProfile } from '../store';
+import { ArrowLeft, Search, Loader2 } from 'lucide-react';
+import { getProfile } from '../store';
+import { fetchUserWords } from '../services/lessonService';
 import { getDictionary } from '../data/dictionaries';
 
 export default function Vocabulary() {
   const navigate = useNavigate();
   const profile = getProfile();
-  const userWords = getUserWords();
-  const dictionary = getDictionary(profile?.targetLang || 'en');
+  const [userWords, setUserWords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'learning'>('all');
 
-  const wordsWithDict = userWords.map(uw => {
-    const dict = dictionary.find(d => d.id === uw.dictionaryId);
-    return { ...uw, dict };
-  }).filter(w => w.dict);
+  useEffect(() => {
+    loadWords();
+  }, []);
 
-  const filtered = wordsWithDict.filter(w => {
-    const matchesSearch = w.dict!.lemma.toLowerCase().includes(search.toLowerCase()) ||
-      (w.dict!.translations['ru'] || []).some(t => t.toLowerCase().includes(search.toLowerCase()));
+  const loadWords = async () => {
+    setLoading(true);
+    const words = await fetchUserWords();
+    setUserWords(words);
+    setLoading(false);
+  };
+
+  const dictionary = getDictionary(profile?.targetLang || 'en');
+
+  const wordsWithDict = userWords.map((uw: any) => {
+    const dict = dictionary.find(d => d.id === uw.dictionary_id);
+    return { ...uw, dict };
+  }).filter((w: any) => w.dict);
+
+  const filtered = wordsWithDict.filter((w: any) => {
+    const matchesSearch = w.dict.lemma.toLowerCase().includes(search.toLowerCase()) ||
+      (w.dict.translations['ru'] || []).some((t: string) => t.toLowerCase().includes(search.toLowerCase()));
     
     if (filter === 'active') return matchesSearch && w.status === 'active';
     if (filter === 'learning') return matchesSearch && w.stage < 5;
     return matchesSearch;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-4 pb-20">
@@ -81,7 +103,7 @@ export default function Vocabulary() {
               <p>Слов пока нет. Начни урок!</p>
             </div>
           ) : (
-            filtered.map((w, i) => (
+            filtered.map((w: any, i: number) => (
               <motion.div
                 key={w.id}
                 initial={{ opacity: 0, x: -10 }}
@@ -91,14 +113,14 @@ export default function Vocabulary() {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold text-gray-800 text-lg">{w.dict!.lemma}</div>
+                    <div className="font-semibold text-gray-800 text-lg">{w.dict.lemma}</div>
                     <div className="text-sm text-gray-500">
-                      {(w.dict!.translations['ru'] || []).join(', ')}
+                      {(w.dict.translations['ru'] || []).join(', ')}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-1">
-                      {Array.from({ length: 10 }).map((_, idx) => (
+                      {Array.from({ length: 10 }).map((_: any, idx: number) => (
                         <div
                           key={idx}
                           className={`w-2 h-2 rounded-full ${
@@ -108,7 +130,7 @@ export default function Vocabulary() {
                       ))}
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
-                      ✓{w.correctCount} ✗{w.incorrectCount}
+                      ✓{w.correct_count} ✗{w.incorrect_count}
                     </div>
                   </div>
                 </div>

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Flame, BookOpen, Target, TrendingUp, LogOut, RotateCcw } from 'lucide-react';
-import { getUser, getProfile, getStats, getUserWords, getLessons, getLessonsToday, resetAll } from '../store';
+import { Flame, BookOpen, Target, TrendingUp, RotateCcw, Loader2 } from 'lucide-react';
+import { getUser, getProfile, getStats, resetAll } from '../store';
 import { startLesson } from '../services/lessonService';
+import { fetchUserWords, fetchStats } from '../services/lessonService';
 import { getDictionary } from '../data/dictionaries';
 
 const langNames: Record<string, string> = {
@@ -16,25 +17,33 @@ const langFlags: Record<string, string> = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState(getStats());
-  const [profile, setProfile] = useState(getProfile());
   const user = getUser();
-  const userWords = getUserWords();
-  const lessons = getLessons();
-  const todayData = getLessonsToday();
-  const today = new Date().toISOString().split('T')[0];
-  const todayCount = todayData.date === today ? todayData.count : 0;
+  const profile = getProfile();
+  const [stats, setStats] = useState<any>(null);
+  const [userWords, setUserWords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const handleStartLesson = () => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const [statsData, wordsData] = await Promise.all([
+      fetchStats(),
+      fetchUserWords(),
+    ]);
+    setStats(statsData);
+    setUserWords(wordsData);
+    setLoading(false);
+  };
+
+  const handleStartLesson = async () => {
     setError('');
-    const session = startLesson();
+    const session = await startLesson();
     if (!session) {
-      if (todayCount >= (profile?.dailyLessonLimit || 3)) {
-        setError('Дневной лимит уроков достигнут! Отдохни и приходи завтра 🌙');
-      } else {
-        setError('Нет доступных слов для изучения. Попробуй позже.');
-      }
+      setError('Не удалось начать урок. Попробуйте позже.');
       return;
     }
     navigate('/lesson');
@@ -47,8 +56,15 @@ export default function Dashboard() {
     }
   };
 
-  const completedLessons = lessons.filter(l => l.status === 'completed').length;
-  const activeWords = userWords.filter(w => w.status === 'active').length;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  const activeWords = userWords.filter((w: any) => w.status === 'active').length;
 
   return (
     <div className="min-h-screen p-4 pb-20">
@@ -90,7 +106,7 @@ export default function Dashboard() {
               <Flame className="w-5 h-5 text-orange-500" />
               <span className="text-sm text-gray-500">Стрик</span>
             </div>
-            <div className="text-3xl font-bold text-gray-800">{stats?.currentStreak || 0}</div>
+            <div className="text-3xl font-bold text-gray-800">{stats?.current_streak || 0}</div>
             <div className="text-xs text-gray-400">дней подряд</div>
           </motion.div>
 
@@ -104,7 +120,7 @@ export default function Dashboard() {
               <BookOpen className="w-5 h-5 text-blue-500" />
               <span className="text-sm text-gray-500">Уроки</span>
             </div>
-            <div className="text-3xl font-bold text-gray-800">{completedLessons}</div>
+            <div className="text-3xl font-bold text-gray-800">{stats?.total_lessons_completed || 0}</div>
             <div className="text-xs text-gray-400">всего пройдено</div>
           </motion.div>
 
@@ -130,10 +146,10 @@ export default function Dashboard() {
           >
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-5 h-5 text-purple-500" />
-              <span className="text-sm text-gray-500">Сегодня</span>
+              <span className="text-sm text-gray-500">Изучено</span>
             </div>
-            <div className="text-3xl font-bold text-gray-800">{todayCount}/{profile?.dailyLessonLimit || 3}</div>
-            <div className="text-xs text-gray-400">уроков</div>
+            <div className="text-3xl font-bold text-gray-800">{stats?.total_words_learned || 0}</div>
+            <div className="text-xs text-gray-400">всего слов</div>
           </motion.div>
         </div>
 
@@ -188,8 +204,8 @@ export default function Dashboard() {
           >
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Последние слова</h3>
             <div className="flex flex-wrap gap-2">
-              {userWords.slice(-10).reverse().map(uw => {
-                const dict = getDictionary(profile?.targetLang || 'en').find(d => d.id === uw.dictionaryId);
+              {userWords.slice(-10).reverse().map((uw: any) => {
+                const dict = getDictionary(profile?.targetLang || 'en').find(d => d.id === uw.dictionary_id);
                 return dict ? (
                   <div
                     key={uw.id}
@@ -200,36 +216,6 @@ export default function Dashboard() {
                   </div>
                 ) : null;
               })}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Lesson History */}
-        {completedLessons > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="mt-8"
-          >
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">История уроков</h3>
-            <div className="space-y-2">
-              {lessons.filter(l => l.status === 'completed').slice(-5).reverse().map(lesson => (
-                <div key={lesson.id} className="bg-white rounded-xl p-3 border border-gray-100 flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-gray-800">Урок #{lesson.lessonNumber}</div>
-                    <div className="text-xs text-gray-400">
-                      {new Date(lesson.startedAt).toLocaleDateString('ru')}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-green-600">
-                      {lesson.correctWords}/{lesson.totalWords} ✓
-                    </div>
-                    <div className="text-xs text-gray-400">+{lesson.newWordsAdded} слов</div>
-                  </div>
-                </div>
-              ))}
             </div>
           </motion.div>
         )}
