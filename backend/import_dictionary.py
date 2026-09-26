@@ -18,7 +18,7 @@ from pathlib import Path
 # Добавить backend в путь
 sys.path.insert(0, str(Path(__file__).parent))
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import select
 from config import settings
 from models import Dictionary, DictionaryTranslation
@@ -200,9 +200,11 @@ async def main():
     # Подключение к БД
     print("\n🔌 Подключение к базе данных...")
     engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
-    async with engine.begin() as session:
+    async with async_session() as session:
         stats = await import_words(session, words, args.dry_run, args.lang)
+        await session.commit()
     
     await engine.dispose()
     
