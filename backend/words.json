@@ -1,0 +1,144 @@
+{
+  "words": [
+    {
+      "lemma": "house",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["дом", "жилище", "здание"]
+    },
+    {
+      "lemma": "run",
+      "pos": "verb",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["бежать", "бегать", "пробежать"]
+    },
+    {
+      "lemma": "big",
+      "pos": "adjective",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["большой", "крупный", "огромный"]
+    },
+    {
+      "lemma": "quickly",
+      "pos": "adverb",
+      "cefr_level": "A2",
+      "target_lang": "en",
+      "translations": ["быстро", "стремительно", "скоростно"]
+    },
+    {
+      "lemma": "cat",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["кошка", "кот"]
+    },
+    {
+      "lemma": "eat",
+      "pos": "verb",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["есть", "кушать", "питаться"]
+    },
+    {
+      "lemma": "small",
+      "pos": "adjective",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["маленький", "небольшой", "мелкий"]
+    },
+    {
+      "lemma": "water",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["вода"]
+    },
+    {
+      "lemma": "sleep",
+      "pos": "verb",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["спать", "дремать"]
+    },
+    {
+      "lemma": "happy",
+      "pos": "adjective",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["счастливый", "радостный", "довольный"]
+    },
+    {
+      "lemma": "book",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["книга", "книжка"]
+    },
+    {
+      "lemma": "read",
+      "pos": "verb",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["читать", "прочитать", "прочитывать"]
+    },
+    {
+      "lemma": "dog",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["собака", "пёс", "пёсик"]
+    },
+    {
+      "lemma": "walk",
+      "pos": "verb",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["гулять", "ходить", "прогуливаться"]
+    },
+    {
+      "lemma": "beautiful",
+      "pos": "adjective",
+      "cefr_level": "A2",
+      "target_lang": "en",
+      "translations": ["красивый", "прекрасный", "чудесный"]
+    },
+    {
+      "lemma": "tree",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["дерево"]
+    },
+    {
+      "lemma": "green",
+      "pos": "adjective",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["зелёный", "зеленый"]
+    },
+    {
+      "lemma": "park",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["парк", "сквер"]
+    },
+    {
+      "lemma": "friend",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["друг", "приятель", "товарищ"]
+    },
+    {
+      "lemma": "play",
+      "pos": "verb",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["играть", "поиграть", "сыграть"]
+    }
+  ]
+}

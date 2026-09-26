@@ -140,9 +140,9 @@ Frontend будет доступен на `http://localhost:5173`
 
 ## 📚 Пополнение словаря
 
-Скрипт `backend/generate_dictionary.py` использует GigaChat API для автоматической генерации слов и добавления их в базу данных.
+### Способ 1: Генерация через GigaChat API
 
-### Использование
+Скрипт `backend/generate_dictionary.py` использует GigaChat API для автоматической генерации слов и добавления их в базу данных.
 
 ```bash
 cd backend
@@ -163,14 +163,54 @@ python generate_dictionary.py --count 50
 python generate_dictionary.py --dry-run
 ```
 
-### Параметры
-
+**Параметры:**
 - `--lang` — язык (en, de, es, fr). По умолчанию — все языки
 - `--level` — уровень CEFR (A1, A2, B1, B2). По умолчанию — все уровни
 - `--count` — количество слов за запрос (по умолчанию 30)
 - `--dry-run` — только показать, что будет добавлено
 
 Подробная документация: [DICTIONARY_GENERATION.md](./DICTIONARY_GENERATION.md)
+
+### Способ 2: Импорт из JSON-файла
+
+Скрипт `backend/import_dictionary.py` позволяет импортировать слова из JSON-файла.
+
+```bash
+cd backend
+
+# Импорт из words.json (пример файла уже включён)
+python import_dictionary.py
+
+# Импорт из другого файла
+python import_dictionary.py --file my_words.json
+
+# Тестовый прогон (без записи в БД)
+python import_dictionary.py --dry-run
+```
+
+**Формат JSON-файла:**
+
+```json
+{
+  "words": [
+    {
+      "lemma": "house",
+      "pos": "noun",
+      "cefr_level": "A1",
+      "target_lang": "en",
+      "translations": ["дом", "жилище"]
+    }
+  ]
+}
+```
+
+**Параметры:**
+- `--file` — путь к JSON-файлу (по умолчанию: `words.json`)
+- `--dry-run` — только показать, что будет добавлено
+
+Пример файла `words.json` с 20 английскими словами уже включён в проект.
+
+Подробная документация: [IMPORT_DICTIONARY.md](./IMPORT_DICTIONARY.md)
 
 ## 📖 User Journey
 
