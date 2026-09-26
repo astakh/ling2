@@ -1,4 +1,4 @@
-import { startLesson as apiStartLesson, submitTranslation, getUserWords, getStats, EvaluationResult } from './api';
+import { startLesson as apiStartLesson, submitTranslation, completeLesson as apiCompleteLesson, getUserWords, getStats, EvaluationResult, CompleteLessonResponse } from './api';
 import { getProfileId } from '../store';
 import { DictionaryWord, Lesson, LessonExercise } from '../types';
 import { getDictionary } from '../data/dictionaries';
@@ -128,6 +128,19 @@ export async function submitExerciseTranslation(
     return await submitTranslation(exerciseId, translation);
   } catch (err) {
     console.error('Failed to submit translation:', err);
+    return null;
+  }
+}
+
+// Complete lesson via API
+export async function completeLesson(lessonId: string): Promise<CompleteLessonResponse | null> {
+  try {
+    console.log('[LessonService] Completing lesson:', lessonId);
+    const result = await apiCompleteLesson(lessonId);
+    console.log('[LessonService] Lesson completed:', result);
+    return result;
+  } catch (err) {
+    console.error('[LessonService] Failed to complete lesson:', err);
     return null;
   }
 }

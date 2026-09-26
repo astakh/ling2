@@ -76,6 +76,15 @@ export interface EvaluationResult {
   correct_translation?: string;
 }
 
+export interface CompleteLessonResponse {
+  status: string;
+  lesson_id: string;
+  correct_words: number;
+  total_words: number;
+  new_words_added: number;
+  streak: number;
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   console.log('[API] Request:', url, options);
   const response = await fetch(`${API_BASE}${url}`, {
@@ -171,6 +180,15 @@ export async function submitTranslation(
     body: JSON.stringify({
       exercise_id: exerciseId,
       translation,
+    }),
+  });
+}
+
+export async function completeLesson(lessonId: string): Promise<CompleteLessonResponse> {
+  return request<CompleteLessonResponse>('/lesson/complete', {
+    method: 'POST',
+    body: JSON.stringify({
+      lesson_id: lessonId,
     }),
   });
 }

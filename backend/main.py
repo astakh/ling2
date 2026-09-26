@@ -749,9 +749,38 @@ class LessonService:
             db.add(exercise)
             exercises.append(exercise)
         
+        # Add NEW words to user_words (only new words, not due words)
+        logger.info(f"[LessonService] Adding {len(new_words)} new words to user_words")
+        for word in new_words:
+            # Check if word already exists in user_words
+            existing_result = await db.execute(
+                select(UserWord).where(
+                    UserWord.user_language_profile_id == profile_id,
+                    UserWord.dictionary_id == word.id,
+                )
+            )
+            existing = existing_result.scalar_one_or_none()
+            
+            if not existing:
+                # Create new user_word
+                user_word = UserWord(
+                    id=str(uuid.uuid4()),
+                    user_language_profile_id=profile_id,
+                    dictionary_id=word.id,
+                    stage=0,
+                    due_lesson_number=lesson_number + 1,  # Due after this lesson
+                    status="active",
+                    correct_count=0,
+                    incorrect_count=0,
+                )
+                db.add(user_word)
+                logger.info(f"[LessonService] Added word '{word.lemma}' to user_words")
+        
         # Update profile
         profile.current_lesson_number = lesson_number
         await db.flush()
+        
+        logger.info(f"[LessonService] Lesson created: {lesson.id}, {len(exercises)} exercises, {len(new_words)} new words added")
         
         return {"lesson": lesson, "exercises": exercises, "resumed": False}
 
@@ -928,6 +957,75 @@ async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = D
     
     await db.flush()
     return evaluation
+
+@app.post("/api/lesson/complete")
+async def complete_lesson(req: dict, db: AsyncSession = Depends(get_db)):
+    """Завершить урок и обновить статистику"""
+    lesson_id = req.get("lesson_id")
+    if not lesson_id:
+        raise HTTPException(status_code=400, detail="lesson_id is required")
+    
+    logger.info(f"[Lesson Complete] Completing lesson: {lesson_id}")
+    
+    # Get lesson
+    result = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+    lesson = result.scalar_one_or_none()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    
+    # Count correct words from exercises
+    exercises_result = await db.execute(
+        select(LessonExercise).where(LessonExercise.lesson_id == lesson_id)
+    )
+    exercises = exercises_result.scalars().all()
+    
+    correct_words = 0
+    for exercise in exercises:
+        if exercise.llm_response_json:
+            word_results = exercise.llm_response_json.get("word_results", [])
+            correct_words += sum(1 for wr in word_results if wr.get("is_correct"))
+    
+    # Update lesson
+    lesson.status = "completed"
+    lesson.completed_at = datetime.now()
+    lesson.correct_words = correct_words
+    lesson.new_words_added = len([w for w in exercises[0].target_word_ids]) if exercises else 0
+    
+    # Update user stats
+    stats_result = await db.execute(
+        select(UserStats).where(UserStats.user_id == lesson.user_id)
+    )
+    stats = stats_result.scalar_one_or_none()
+    
+    if stats:
+        # Update streak
+        today = date.today()
+        if stats.last_lesson_date:
+            days_diff = (today - stats.last_lesson_date.date()).days
+            if days_diff == 1:
+                stats.current_streak += 1
+            elif days_diff > 1:
+                stats.current_streak = 1
+        else:
+            stats.current_streak = 1
+        
+        stats.longest_streak = max(stats.longest_streak, stats.current_streak)
+        stats.last_lesson_date = datetime.now()
+        stats.total_lessons_completed += 1
+        stats.total_words_learned += lesson.new_words_added
+        
+        logger.info(f"[Lesson Complete] Updated stats: streak={stats.current_streak}, lessons={stats.total_lessons_completed}")
+    
+    await db.flush()
+    
+    return {
+        "status": "completed",
+        "lesson_id": lesson_id,
+        "correct_words": correct_words,
+        "total_words": lesson.total_words,
+        "new_words_added": lesson.new_words_added,
+        "streak": stats.current_streak if stats else 0
+    }
 
 @app.post("/api/words/add")
 async def add_word(req: AddWordRequest, db: AsyncSession = Depends(get_db)):

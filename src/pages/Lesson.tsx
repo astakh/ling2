@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Check, Loader2, X } from 'lucide-react';
 import { getProfile, getUser } from '../store';
 import { getDictionary } from '../data/dictionaries';
-import { startLesson, submitExerciseTranslation } from '../services/lessonService';
+import { startLesson, submitExerciseTranslation, completeLesson } from '../services/lessonService';
 import { DictionaryWord, LessonExercise } from '../types';
 import { EvaluationResult } from '../services/api';
 
@@ -93,7 +93,7 @@ export default function Lesson() {
     setLoading(false);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setShowResult(false);
     setTranslation('');
     setCurrentResult(null);
@@ -101,7 +101,12 @@ export default function Lesson() {
     
     const nextIndex = exerciseIndex + 1;
     if (nextIndex >= exercises.length) {
-      // All exercises done
+      // All exercises done - complete the lesson
+      console.log('[Lesson] All exercises done, completing lesson...');
+      if (lesson) {
+        const result = await completeLesson(lesson.id);
+        console.log('[Lesson] Lesson completed:', result);
+      }
       navigate('/complete');
     } else {
       setExerciseIndex(nextIndex);
