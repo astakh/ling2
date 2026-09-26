@@ -236,6 +236,13 @@ class GigaChatService:
         # Получить новый токен
         logger.info("[GigaChat] Requesting new access token...")
         
+        # Проверяем формат credentials
+        auth_header = settings.GIGACHAT_CREDENTIALS
+        if not auth_header.startswith("Basic "):
+            auth_header = f"Basic {auth_header}"
+        
+        logger.debug(f"[GigaChat] Authorization header: {auth_header[:20]}...")
+        
         async with httpx.AsyncClient(verify=False) as client:  # verify=False для самоподписанного сертификата Сбера
             response = await client.post(
                 settings.GIGACHAT_OAUTH_URL,
@@ -243,7 +250,7 @@ class GigaChatService:
                     "Content-Type": "application/x-www-form-urlencoded",
                     "Accept": "application/json",
                     "RqUID": str(uuid.uuid4()),
-                    "Authorization": f"Basic {settings.GIGACHAT_CREDENTIALS}",
+                    "Authorization": auth_header,
                 },
                 data={"scope": settings.GIGACHAT_SCOPE},
                 timeout=30.0,
