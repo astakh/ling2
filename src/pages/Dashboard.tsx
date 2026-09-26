@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Flame, BookOpen, Target, TrendingUp, RotateCcw, Loader2 } from 'lucide-react';
+import { Flame, BookOpen, Target, TrendingUp, RotateCcw, Loader2, Settings } from 'lucide-react';
 import { getUser, getProfile, getStats, resetAll } from '../store';
 import { startLesson } from '../services/lessonService';
 import { fetchUserWords, fetchStats } from '../services/lessonService';
@@ -93,6 +93,13 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => navigate('/profile')}
+              className="p-2 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
+              title="Настройки профиля"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
             <button
               onClick={handleReset}
               className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"

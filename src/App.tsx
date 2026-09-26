@@ -6,6 +6,7 @@ import Lesson from './pages/Lesson';
 import LessonReview from './pages/LessonReview';
 import LessonComplete from './pages/LessonComplete';
 import Vocabulary from './pages/Vocabulary';
+import Profile from './pages/Profile';
 
 function App() {
   const user = getUser();
@@ -39,6 +40,10 @@ function App() {
           <Route 
             path="/vocabulary" 
             element={user ? <Vocabulary /> : <Navigate to="/onboarding" />} 
+          />
+          <Route 
+            path="/profile" 
+            element={user ? <Profile /> : <Navigate to="/onboarding" />} 
           />
           <Route path="*" element={<Navigate to={user ? "/dashboard" : "/onboarding"} />} />
         </Routes>

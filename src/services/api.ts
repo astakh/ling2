@@ -145,6 +145,20 @@ export async function getProfile(profileId: string): Promise<Profile> {
   return request<Profile>(`/profile/${profileId}`);
 }
 
+export async function updateProfile(
+  profileId: string,
+  data: {
+    cefr_level?: string;
+    words_per_lesson_limit?: number;
+    daily_lesson_limit?: number;
+  }
+): Promise<Profile> {
+  return request<Profile>(`/profile/${profileId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function getUserProfile(userId: string): Promise<Profile | null> {
   return request<Profile | null>(`/user/${userId}/profile`);
 }

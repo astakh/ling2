@@ -867,6 +867,44 @@ async def get_profile(profile_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
 
+class UpdateProfileRequest(BaseModel):
+    cefr_level: Optional[str] = None
+    words_per_lesson_limit: Optional[int] = None
+    daily_lesson_limit: Optional[int] = None
+
+@app.put("/api/profile/{profile_id}")
+async def update_profile(profile_id: str, req: UpdateProfileRequest, db: AsyncSession = Depends(get_db)):
+    logger.info(f"[Profile Update] Updating profile: {profile_id}")
+    
+    result = await db.execute(
+        select(UserLanguageProfile).where(UserLanguageProfile.id == profile_id)
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    # Update fields if provided
+    if req.cefr_level is not None:
+        if req.cefr_level not in ["A1", "A2", "B1", "B2"]:
+            raise HTTPException(status_code=400, detail="Invalid CEFR level")
+        profile.cefr_level = req.cefr_level
+        logger.info(f"[Profile Update] Updated cefr_level to {req.cefr_level}")
+    
+    if req.words_per_lesson_limit is not None:
+        if req.words_per_lesson_limit < 1 or req.words_per_lesson_limit > 20:
+            raise HTTPException(status_code=400, detail="Words per lesson must be between 1 and 20")
+        profile.words_per_lesson_limit = req.words_per_lesson_limit
+        logger.info(f"[Profile Update] Updated words_per_lesson_limit to {req.words_per_lesson_limit}")
+    
+    if req.daily_lesson_limit is not None:
+        if req.daily_lesson_limit < 1 or req.daily_lesson_limit > 10:
+            raise HTTPException(status_code=400, detail="Daily lesson limit must be between 1 and 10")
+        profile.daily_lesson_limit = req.daily_lesson_limit
+        logger.info(f"[Profile Update] Updated daily_lesson_limit to {req.daily_lesson_limit}")
+    
+    await db.flush()
+    return profile
+
 @app.get("/api/stats/{user_id}")
 async def get_stats(user_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(UserStats).where(UserStats.user_id == user_id))
