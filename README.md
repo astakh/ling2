@@ -15,7 +15,7 @@
 - **FastAPI** (async Python API)
 - **PostgreSQL** (удалённый сервер)
 - **SQLAlchemy 2.0** (async ORM)
-- **OpenAI API** (опционально, есть моковый режим)
+- **GigaChat API** (LLM для генерации предложений и проверки переводов)
 
 ## 🚀 Быстрый старт
 
@@ -124,19 +124,53 @@ Frontend будет доступен на `http://localhost:5173`
 
 ## 📋 Режимы работы
 
-### Моковый режим (без OpenAI API)
+### Моковый режим (без GigaChat API)
 
-Если `OPENAI_API_KEY` не указан или пустой, приложение автоматически использует моковый LLM:
+Если `GIGACHAT_CREDENTIALS` не указан или равен `your-gigachat-credentials-here`, приложение автоматически использует моковый LLM:
 - Генерирует простые предложения
 - Проверяет переводы по простому алгоритму
 - Работает полностью локально
 
-### Реальный режим (с OpenAI API)
+### Реальный режим (с GigaChat API)
 
-Если указан валидный `OPENAI_API_KEY`:
-- Генерирует осмысленные предложения через GPT-4o-mini
+Если указан валидный `GIGACHAT_CREDENTIALS`:
+- Генерирует осмысленные предложения через GigaChat-2-Max
 - Оценивает переводы с учётом контекста
 - Поддерживает typo-tolerance
+
+## 📚 Пополнение словаря
+
+Скрипт `backend/generate_dictionary.py` использует GigaChat API для автоматической генерации слов и добавления их в базу данных.
+
+### Использование
+
+```bash
+cd backend
+
+# Все языки, все уровни (по 30 слов за запрос)
+python generate_dictionary.py
+
+# Только английский
+python generate_dictionary.py --lang en
+
+# Только уровень A1
+python generate_dictionary.py --level A1
+
+# 50 слов за запрос
+python generate_dictionary.py --count 50
+
+# Сухой прогон (без записи в БД)
+python generate_dictionary.py --dry-run
+```
+
+### Параметры
+
+- `--lang` — язык (en, de, es, fr). По умолчанию — все языки
+- `--level` — уровень CEFR (A1, A2, B1, B2). По умолчанию — все уровни
+- `--count` — количество слов за запрос (по умолчанию 30)
+- `--dry-run` — только показать, что будет добавлено
+
+Подробная документация: [DICTIONARY_GENERATION.md](./DICTIONARY_GENERATION.md)
 
 ## 📖 User Journey
 
