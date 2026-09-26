@@ -3,3 +3,13 @@ node_modules/
 dist/
 build/
 *.log
+
+# User data
+words.json
+backend/words.json
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+backend/.env
