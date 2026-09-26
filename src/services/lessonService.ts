@@ -52,87 +52,83 @@ export async function startLesson(forceNew: boolean = false): Promise<LessonSess
     return null;
   }
   
-  try {
-    console.log('[LessonService] Calling API startLesson with forceNew:', forceNew);
-    const response = await apiStartLesson(profileId, forceNew);
-    console.log('[LessonService] API response:', response);
-    
-    // Get profile to determine target language
-    const profile = JSON.parse(localStorage.getItem('lingo_profile') || '{}');
-    const targetLang = profile.targetLang || 'en';
-    
-    // Fetch dictionary from API (real data from database)
-    console.log('[LessonService] Fetching dictionary from API for language:', targetLang);
-    const dictionaryFromAPI = await getDictionaryFromAPI(targetLang);
-    console.log('[LessonService] Dictionary loaded:', dictionaryFromAPI.length, 'words');
-    
-    // Collect all unique word IDs from exercises
-    const allWordIds = new Set<string>();
-    response.exercises.forEach(ex => {
-      ex.target_word_ids.forEach((id: string) => allWordIds.add(id));
-    });
-    
-    // Get dictionary words that match the exercise word IDs
-    const todayWords: DictionaryWord[] = [];
-    allWordIds.forEach(id => {
-      const word = dictionaryFromAPI.find((w: DictionaryWordFromAPI) => w.id === id);
-      if (word) {
-        // Convert API format to DictionaryWord format
-        todayWords.push({
-          id: word.id,
-          targetLang: word.targetLang as any,
-          lemma: word.lemma,
-          pos: word.pos,
-          cefrLevel: word.cefrLevel as any,
-          translations: word.translations,
-        });
-      }
-    });
-    
-    console.log('[LessonService] Today words:', todayWords.length);
-    
-    // Cluster words (for display purposes)
-    const wordGroups = clusterWords(todayWords);
-    
-    // Convert API response to frontend format
-    const lesson: any = {
-      id: response.lesson.id,
-      userId: response.lesson.user_id,
-      profileId: response.lesson.user_language_profile_id,
-      lessonNumber: response.lesson.lesson_number,
-      startedAt: response.lesson.started_at,
-      completedAt: response.lesson.completed_at,
-      status: response.lesson.status,
-      totalWords: response.lesson.total_words,
-      correctWords: response.lesson.correct_words,
-      newWordsAdded: response.lesson.new_words_added,
-    };
-    
-    const exercises: LessonExercise[] = response.exercises.map(ex => ({
-      id: ex.id,
-      lessonId: ex.lesson_id,
-      orderIndex: ex.order_index,
-      targetSentence: ex.target_sentence,
-      targetWordIds: ex.target_word_ids,
-      userTranslation: ex.user_translation || '',
-      llmResponse: ex.llm_response_json,
-      status: ex.status as any,
-    }));
-    
-    // Find first pending exercise
-    const pendingIndex = exercises.findIndex(e => e.status === 'pending');
-    
-    return {
-      lesson,
-      exercises,
-      currentExerciseIndex: pendingIndex >= 0 ? pendingIndex : 0,
-      todayWords,
-      wordGroups,
-    };
-  } catch (err) {
-    console.error('Failed to start lesson:', err);
-    return null;
-  }
+  // Не перехватываем ошибку здесь, чтобы она дошла до Dashboard
+  console.log('[LessonService] Calling API startLesson with forceNew:', forceNew);
+  const response = await apiStartLesson(profileId, forceNew);
+  console.log('[LessonService] API response:', response);
+  
+  // Get profile to determine target language
+  const profile = JSON.parse(localStorage.getItem('lingo_profile') || '{}');
+  const targetLang = profile.targetLang || 'en';
+  
+  // Fetch dictionary from API (real data from database)
+  console.log('[LessonService] Fetching dictionary from API for language:', targetLang);
+  const dictionaryFromAPI = await getDictionaryFromAPI(targetLang);
+  console.log('[LessonService] Dictionary loaded:', dictionaryFromAPI.length, 'words');
+  
+  // Collect all unique word IDs from exercises
+  const allWordIds = new Set<string>();
+  response.exercises.forEach(ex => {
+    ex.target_word_ids.forEach((id: string) => allWordIds.add(id));
+  });
+  
+  // Get dictionary words that match the exercise word IDs
+  const todayWords: DictionaryWord[] = [];
+  allWordIds.forEach(id => {
+    const word = dictionaryFromAPI.find((w: DictionaryWordFromAPI) => w.id === id);
+    if (word) {
+      // Convert API format to DictionaryWord format
+      todayWords.push({
+        id: word.id,
+        targetLang: word.targetLang as any,
+        lemma: word.lemma,
+        pos: word.pos,
+        cefrLevel: word.cefrLevel as any,
+        translations: word.translations,
+      });
+    }
+  });
+  
+  console.log('[LessonService] Today words:', todayWords.length);
+  
+  // Cluster words (for display purposes)
+  const wordGroups = clusterWords(todayWords);
+  
+  // Convert API response to frontend format
+  const lesson: any = {
+    id: response.lesson.id,
+    userId: response.lesson.user_id,
+    profileId: response.lesson.user_language_profile_id,
+    lessonNumber: response.lesson.lesson_number,
+    startedAt: response.lesson.started_at,
+    completedAt: response.lesson.completed_at,
+    status: response.lesson.status,
+    totalWords: response.lesson.total_words,
+    correctWords: response.lesson.correct_words,
+    newWordsAdded: response.lesson.new_words_added,
+  };
+  
+  const exercises: LessonExercise[] = response.exercises.map(ex => ({
+    id: ex.id,
+    lessonId: ex.lesson_id,
+    orderIndex: ex.order_index,
+    targetSentence: ex.target_sentence,
+    targetWordIds: ex.target_word_ids,
+    userTranslation: ex.user_translation || '',
+    llmResponse: ex.llm_response_json,
+    status: ex.status as any,
+  }));
+  
+  // Find first pending exercise
+  const pendingIndex = exercises.findIndex(e => e.status === 'pending');
+  
+  return {
+    lesson,
+    exercises,
+    currentExerciseIndex: pendingIndex >= 0 ? pendingIndex : 0,
+    todayWords,
+    wordGroups,
+  };
 }
 
 // Submit translation via API

@@ -687,7 +687,11 @@ class LessonService:
         )
         today_count = result.scalar()
         if today_count >= profile.daily_lesson_limit:
-            raise HTTPException(status_code=429, detail="Daily lesson limit reached")
+            logger.info(f"[LessonService.start_lesson] Daily limit reached: {today_count}/{profile.daily_lesson_limit}")
+            raise HTTPException(
+                status_code=429, 
+                detail=f"Дневной лимит уроков достигнут: {today_count} из {profile.daily_lesson_limit}. Продолжим завтра!"
+            )
         
         # Get words for lesson
         due_words = await LessonService.get_due_words(db, profile_id, profile.current_lesson_number)

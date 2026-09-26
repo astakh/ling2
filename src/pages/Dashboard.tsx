@@ -47,15 +47,35 @@ export default function Dashboard() {
     console.log('[Dashboard] Current user:', user);
     console.log('[Dashboard] Current profile:', profile);
     setError('');
-    const session = await startLesson(true); // force_new=true для генерации новых предложений
-    console.log('[Dashboard] Lesson session:', session);
-    if (!session) {
-      console.error('[Dashboard] Failed to start lesson');
-      setError('Не удалось начать урок. Попробуйте позже.');
-      return;
+    
+    try {
+      const session = await startLesson(true); // force_new=true для генерации новых предложений
+      console.log('[Dashboard] Lesson session:', session);
+      
+      if (!session) {
+        console.error('[Dashboard] Failed to start lesson');
+        setError('Не удалось начать урок. Попробуйте позже.');
+        return;
+      }
+      
+      console.log('[Dashboard] Navigating to /lesson');
+      navigate('/lesson');
+    } catch (error: any) {
+      console.error('[Dashboard] Error starting lesson:', error);
+      
+      // Проверяем, если это ошибка дневного лимита
+      if (error.message && error.message.includes('429')) {
+        // Извлекаем сообщение из ошибки
+        const match = error.message.match(/Дневной лимит уроков достигнут:.*$/);
+        if (match) {
+          setError(match[0]);
+        } else {
+          setError('Дневной лимит уроков достигнут. Продолжим завтра!');
+        }
+      } else {
+        setError('Не удалось начать урок. Попробуйте позже.');
+      }
     }
-    console.log('[Dashboard] Navigating to /lesson');
-    navigate('/lesson');
   };
 
   const handleReset = () => {
