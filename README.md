@@ -34,10 +34,29 @@ GRANT ALL PRIVILEGES ON DATABASE lingoflow TO lingoflow;
 
 # Разрешить удалённые подключения (postgresql.conf, pg_hba.conf)
 sudo systemctl restart postgresql
+```
 
-# Инициализировать схему
+### 1.1. Инициализация схемы БД
+
+После создания БД на сервере, выполните инициализацию схемы:
+
+**Вариант 1: Python скрипт (рекомендуется)**
+```bash
+python init_database.py
+```
+
+**Вариант 2: Bash скрипт (Linux/Mac)**
+```bash
+chmod +x init_database.sh
+./init_database.sh
+```
+
+**Вариант 3: Напрямую через psql**
+```bash
 psql -h your-server-ip -U lingoflow -d lingoflow -f backend/init_db.sql
 ```
+
+Все скрипты автоматически читают настройки из `backend/.env`.
 
 ### 2. Запуск Backend
 

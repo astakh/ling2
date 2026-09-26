@@ -15,6 +15,18 @@ sudo systemctl restart postgresql
 
 ## 2. Инициализировать БД
 
+**Вариант 1: Python скрипт (рекомендуется)**
+```bash
+python init_database.py
+```
+
+**Вариант 2: Bash скрипт (Linux/Mac)**
+```bash
+chmod +x init_database.sh
+./init_database.sh
+```
+
+**Вариант 3: Напрямую через psql**
 ```bash
 psql -h your-server-ip -U lingoflow -d lingoflow -f backend/init_db.sql
 ```
