@@ -1,0 +1,123 @@
+import { DictionaryWord } from '../types';
+
+export const englishDictionary: DictionaryWord[] = [
+  { id: 'en-1', targetLang: 'en', lemma: 'quick', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['быстрый', 'скорый'], de: ['schnell'], es: ['rápido'] } },
+  { id: 'en-2', targetLang: 'en', lemma: 'run', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['бежать', 'бегать'], de: ['laufen', 'rennen'], es: ['correr'] } },
+  { id: 'en-3', targetLang: 'en', lemma: 'dog', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['собака', 'пёс'], de: ['Hund'], es: ['perro'] } },
+  { id: 'en-4', targetLang: 'en', lemma: 'house', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['дом', 'жилище'], de: ['Haus'], es: ['casa'] } },
+  { id: 'en-5', targetLang: 'en', lemma: 'big', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['большой', 'крупный'], de: ['groß'], es: ['grande'] } },
+  { id: 'en-6', targetLang: 'en', lemma: 'eat', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['есть', 'кушать'], de: ['essen'], es: ['comer'] } },
+  { id: 'en-7', targetLang: 'en', lemma: 'water', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['вода'], de: ['Wasser'], es: ['agua'] } },
+  { id: 'en-8', targetLang: 'en', lemma: 'sleep', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['спать'], de: ['schlafen'], es: ['dormir'] } },
+  { id: 'en-9', targetLang: 'en', lemma: 'cat', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['кошка', 'кот'], de: ['Katze'], es: ['gato'] } },
+  { id: 'en-10', targetLang: 'en', lemma: 'small', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['маленький', 'малый'], de: ['klein'], es: ['pequeño'] } },
+  { id: 'en-11', targetLang: 'en', lemma: 'book', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['книга'], de: ['Buch'], es: ['libro'] } },
+  { id: 'en-12', targetLang: 'en', lemma: 'read', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['читать', 'прочитать'], de: ['lesen'], es: ['leer'] } },
+  { id: 'en-13', targetLang: 'en', lemma: 'happy', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['счастливый', 'радостный'], de: ['glücklich'], es: ['feliz'] } },
+  { id: 'en-14', targetLang: 'en', lemma: 'child', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['ребёнок', 'дитя'], de: ['Kind'], es: ['niño'] } },
+  { id: 'en-15', targetLang: 'en', lemma: 'play', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['играть'], de: ['spielen'], es: ['jugar'] } },
+  { id: 'en-16', targetLang: 'en', lemma: 'friend', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['друг', 'приятель'], de: ['Freund'], es: ['amigo'] } },
+  { id: 'en-17', targetLang: 'en', lemma: 'walk', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['гулять', 'ходить'], de: ['gehen', 'spazieren'], es: ['caminar', 'pasear'] } },
+  { id: 'en-18', targetLang: 'en', lemma: 'park', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['парк'], de: ['Park'], es: ['parque'] } },
+  { id: 'en-19', targetLang: 'en', lemma: 'green', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['зелёный'], de: ['grün'], es: ['verde'] } },
+  { id: 'en-20', targetLang: 'en', lemma: 'tree', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['дерево'], de: ['Baum'], es: ['árbol'] } },
+  { id: 'en-21', targetLang: 'en', lemma: 'morning', pos: 'noun', cefrLevel: 'A2', translations: { ru: ['утро'], de: ['Morgen'], es: ['mañana'] } },
+  { id: 'en-22', targetLang: 'en', lemma: 'coffee', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['кофе'], de: ['Kaffee'], es: ['café'] } },
+  { id: 'en-23', targetLang: 'en', lemma: 'drink', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['пить'], de: ['trinken'], es: ['beber'] } },
+  { id: 'en-24', targetLang: 'en', lemma: 'cold', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['холодный'], de: ['kalt'], es: ['frío'] } },
+  { id: 'en-25', targetLang: 'en', lemma: 'winter', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['зима'], de: ['Winter'], es: ['invierno'] } },
+  { id: 'en-26', targetLang: 'en', lemma: 'snow', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['снег'], de: ['Schnee'], es: ['nieve'] } },
+  { id: 'en-27', targetLang: 'en', lemma: 'white', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['белый'], de: ['weiß'], es: ['blanco'] } },
+  { id: 'en-28', targetLang: 'en', lemma: 'beautiful', pos: 'adjective', cefrLevel: 'A2', translations: { ru: ['красивый', 'прекрасный'], de: ['schön'], es: ['hermoso', 'bonito'] } },
+  { id: 'en-29', targetLang: 'en', lemma: 'city', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['город'], de: ['Stadt'], es: ['ciudad'] } },
+  { id: 'en-30', targetLang: 'en', lemma: 'night', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['ночь'], de: ['Nacht'], es: ['noche'] } },
+  { id: 'en-31', targetLang: 'en', lemma: 'star', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['звезда'], de: ['Stern'], es: ['estrella'] } },
+  { id: 'en-32', targetLang: 'en', lemma: 'bright', pos: 'adjective', cefrLevel: 'A2', translations: { ru: ['яркий'], de: ['hell', 'bright'], es: ['brillante'] } },
+  { id: 'en-33', targetLang: 'en', lemma: 'sky', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['небо'], de: ['Himmel'], es: ['cielo'] } },
+  { id: 'en-34', targetLang: 'en', lemma: 'blue', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['синий', 'голубой'], de: ['blau'], es: ['azul'] } },
+  { id: 'en-35', targetLang: 'en', lemma: 'ocean', pos: 'noun', cefrLevel: 'A2', translations: { ru: ['океан'], de: ['Ozean'], es: ['océano'] } },
+  { id: 'en-36', targetLang: 'en', lemma: 'deep', pos: 'adjective', cefrLevel: 'A2', translations: { ru: ['глубокий'], de: ['tief'], es: ['profundo'] } },
+  { id: 'en-37', targetLang: 'en', lemma: 'fish', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['рыба'], de: ['Fisch'], es: ['pez', 'pescado'] } },
+  { id: 'en-38', targetLang: 'en', lemma: 'swim', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['плавать'], de: ['schwimmen'], es: ['nadar'] } },
+  { id: 'en-39', targetLang: 'en', lemma: 'love', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['любить'], de: ['lieben'], es: ['amar'] } },
+  { id: 'en-40', targetLang: 'en', lemma: 'music', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['музыка'], de: ['Musik'], es: ['música'] } },
+];
+
+export const germanDictionary: DictionaryWord[] = [
+  { id: 'de-1', targetLang: 'de', lemma: 'schnell', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['быстрый'], en: ['fast', 'quick'] } },
+  { id: 'de-2', targetLang: 'de', lemma: 'laufen', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['бежать', 'бегать'], en: ['run'] } },
+  { id: 'de-3', targetLang: 'de', lemma: 'Hund', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['собака'], en: ['dog'] } },
+  { id: 'de-4', targetLang: 'de', lemma: 'Haus', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['дом'], en: ['house'] } },
+  { id: 'de-5', targetLang: 'de', lemma: 'groß', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['большой'], en: ['big'] } },
+  { id: 'de-6', targetLang: 'de', lemma: 'essen', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['есть', 'кушать'], en: ['eat'] } },
+  { id: 'de-7', targetLang: 'de', lemma: 'Wasser', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['вода'], en: ['water'] } },
+  { id: 'de-8', targetLang: 'de', lemma: 'schlafen', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['спать'], en: ['sleep'] } },
+  { id: 'de-9', targetLang: 'de', lemma: 'Katze', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['кошка'], en: ['cat'] } },
+  { id: 'de-10', targetLang: 'de', lemma: 'klein', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['маленький'], en: ['small'] } },
+  { id: 'de-11', targetLang: 'de', lemma: 'Buch', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['книга'], en: ['book'] } },
+  { id: 'de-12', targetLang: 'de', lemma: 'lesen', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['читать'], en: ['read'] } },
+  { id: 'de-13', targetLang: 'de', lemma: 'glücklich', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['счастливый'], en: ['happy'] } },
+  { id: 'de-14', targetLang: 'de', lemma: 'Kind', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['ребёнок'], en: ['child'] } },
+  { id: 'de-15', targetLang: 'de', lemma: 'spielen', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['играть'], en: ['play'] } },
+  { id: 'de-16', targetLang: 'de', lemma: 'Freund', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['друг'], en: ['friend'] } },
+  { id: 'de-17', targetLang: 'de', lemma: 'gehen', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['идти', 'гулять'], en: ['go', 'walk'] } },
+  { id: 'de-18', targetLang: 'de', lemma: 'Park', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['парк'], en: ['park'] } },
+  { id: 'de-19', targetLang: 'de', lemma: 'grün', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['зелёный'], en: ['green'] } },
+  { id: 'de-20', targetLang: 'de', lemma: 'Baum', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['дерево'], en: ['tree'] } },
+];
+
+export const spanishDictionary: DictionaryWord[] = [
+  { id: 'es-1', targetLang: 'es', lemma: 'rápido', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['быстрый'], en: ['fast', 'quick'] } },
+  { id: 'es-2', targetLang: 'es', lemma: 'correr', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['бежать'], en: ['run'] } },
+  { id: 'es-3', targetLang: 'es', lemma: 'perro', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['собака'], en: ['dog'] } },
+  { id: 'es-4', targetLang: 'es', lemma: 'casa', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['дом'], en: ['house'] } },
+  { id: 'es-5', targetLang: 'es', lemma: 'grande', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['большой'], en: ['big'] } },
+  { id: 'es-6', targetLang: 'es', lemma: 'comer', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['есть', 'кушать'], en: ['eat'] } },
+  { id: 'es-7', targetLang: 'es', lemma: 'agua', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['вода'], en: ['water'] } },
+  { id: 'es-8', targetLang: 'es', lemma: 'dormir', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['спать'], en: ['sleep'] } },
+  { id: 'es-9', targetLang: 'es', lemma: 'gato', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['кошка'], en: ['cat'] } },
+  { id: 'es-10', targetLang: 'es', lemma: 'pequeño', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['маленький'], en: ['small'] } },
+  { id: 'es-11', targetLang: 'es', lemma: 'libro', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['книга'], en: ['book'] } },
+  { id: 'es-12', targetLang: 'es', lemma: 'leer', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['читать'], en: ['read'] } },
+  { id: 'es-13', targetLang: 'es', lemma: 'feliz', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['счастливый'], en: ['happy'] } },
+  { id: 'es-14', targetLang: 'es', lemma: 'niño', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['ребёнок'], en: ['child'] } },
+  { id: 'es-15', targetLang: 'es', lemma: 'jugar', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['играть'], en: ['play'] } },
+  { id: 'es-16', targetLang: 'es', lemma: 'amigo', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['друг'], en: ['friend'] } },
+  { id: 'es-17', targetLang: 'es', lemma: 'caminar', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['гулять', 'ходить'], en: ['walk'] } },
+  { id: 'es-18', targetLang: 'es', lemma: 'parque', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['парк'], en: ['park'] } },
+  { id: 'es-19', targetLang: 'es', lemma: 'verde', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['зелёный'], en: ['green'] } },
+  { id: 'es-20', targetLang: 'es', lemma: 'árbol', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['дерево'], en: ['tree'] } },
+];
+
+export const frenchDictionary: DictionaryWord[] = [
+  { id: 'fr-1', targetLang: 'fr', lemma: 'rapide', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['быстрый'], en: ['fast', 'quick'] } },
+  { id: 'fr-2', targetLang: 'fr', lemma: 'courir', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['бежать'], en: ['run'] } },
+  { id: 'fr-3', targetLang: 'fr', lemma: 'chien', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['собака'], en: ['dog'] } },
+  { id: 'fr-4', targetLang: 'fr', lemma: 'maison', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['дом'], en: ['house'] } },
+  { id: 'fr-5', targetLang: 'fr', lemma: 'grand', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['большой'], en: ['big'] } },
+  { id: 'fr-6', targetLang: 'fr', lemma: 'manger', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['есть', 'кушать'], en: ['eat'] } },
+  { id: 'fr-7', targetLang: 'fr', lemma: 'eau', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['вода'], en: ['water'] } },
+  { id: 'fr-8', targetLang: 'fr', lemma: 'dormir', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['спать'], en: ['sleep'] } },
+  { id: 'fr-9', targetLang: 'fr', lemma: 'chat', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['кошка'], en: ['cat'] } },
+  { id: 'fr-10', targetLang: 'fr', lemma: 'petit', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['маленький'], en: ['small'] } },
+  { id: 'fr-11', targetLang: 'fr', lemma: 'livre', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['книга'], en: ['book'] } },
+  { id: 'fr-12', targetLang: 'fr', lemma: 'lire', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['читать'], en: ['read'] } },
+  { id: 'fr-13', targetLang: 'fr', lemma: 'heureux', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['счастливый'], en: ['happy'] } },
+  { id: 'fr-14', targetLang: 'fr', lemma: 'enfant', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['ребёнок'], en: ['child'] } },
+  { id: 'fr-15', targetLang: 'fr', lemma: 'jouer', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['играть'], en: ['play'] } },
+  { id: 'fr-16', targetLang: 'fr', lemma: 'ami', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['друг'], en: ['friend'] } },
+  { id: 'fr-17', targetLang: 'fr', lemma: 'marcher', pos: 'verb', cefrLevel: 'A1', translations: { ru: ['гулять', 'ходить'], en: ['walk'] } },
+  { id: 'fr-18', targetLang: 'fr', lemma: 'parc', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['парк'], en: ['park'] } },
+  { id: 'fr-19', targetLang: 'fr', lemma: 'vert', pos: 'adjective', cefrLevel: 'A1', translations: { ru: ['зелёный'], en: ['green'] } },
+  { id: 'fr-20', targetLang: 'fr', lemma: 'arbre', pos: 'noun', cefrLevel: 'A1', translations: { ru: ['дерево'], en: ['tree'] } },
+];
+
+export function getDictionary(lang: string): DictionaryWord[] {
+  switch (lang) {
+    case 'en': return englishDictionary;
+    case 'de': return germanDictionary;
+    case 'es': return spanishDictionary;
+    case 'fr': return frenchDictionary;
+    default: return englishDictionary;
+  }
+}
