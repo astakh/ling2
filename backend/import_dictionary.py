@@ -3,9 +3,9 @@
 Скрипт для импорта слов из JSON-файла в базу данных
 
 Использование:
-    python import_dictionary.py                          # Импорт из words.json
+    python import_dictionary.py                          # Импорт из words.json (язык по умолчанию: en)
     python import_dictionary.py --file custom_words.json # Импорт из другого файла
-    python import_dictionary.py --lang en                # Указать язык по умолчанию
+    python import_dictionary.py --lang de                # Указать другой язык
     python import_dictionary.py --dry-run                # Тестовый прогон
 """
 import asyncio
@@ -29,7 +29,7 @@ VALID_LANGS = ["en", "de", "es", "fr", "ru", "it", "pt", "zh", "ja", "ko"]
 VALID_CEFR = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
 
-def validate_word(word_data: dict, index: int, default_lang: str = None) -> tuple[bool, list[str]]:
+def validate_word(word_data: dict, index: int, default_lang: str) -> tuple[bool, list[str]]:
     """Валидация данных слова"""
     errors = []
     
@@ -40,7 +40,7 @@ def validate_word(word_data: dict, index: int, default_lang: str = None) -> tupl
     # Проверка target_lang (с поддержкой default_lang)
     target_lang = word_data.get("target_lang") or default_lang
     if not target_lang:
-        errors.append(f"Слово #{index+1}: отсутствует target_lang (используйте --lang для указания)")
+        errors.append(f"Слово #{index+1}: отсутствует target_lang")
     elif target_lang not in VALID_LANGS:
         errors.append(f"Слово #{index+1}: неверный target_lang '{target_lang}'")
     
@@ -64,7 +64,7 @@ def validate_word(word_data: dict, index: int, default_lang: str = None) -> tupl
     return len(errors) == 0, errors
 
 
-async def import_words(session: AsyncSession, words: list, dry_run: bool = False, default_lang: str = None) -> dict:
+async def import_words(session: AsyncSession, words: list, dry_run: bool = False, default_lang: str = "en") -> dict:
     """Импорт слов в базу данных"""
     stats = {"added": 0, "skipped": 0, "errors": 0, "validation_errors": 0}
     
@@ -141,7 +141,7 @@ async def import_words(session: AsyncSession, words: list, dry_run: bool = False
 async def main():
     parser = argparse.ArgumentParser(description='Импорт слов из JSON-файла в базу данных')
     parser.add_argument('--file', type=str, default='words.json', help='Путь к JSON-файлу (по умолчанию: words.json)')
-    parser.add_argument('--lang', type=str, help='Язык по умолчанию (en, de, es, fr). Используется если в файле нет target_lang')
+    parser.add_argument('--lang', type=str, default='en', help='Язык по умолчанию (по умолчанию: en). Используется если в файле нет target_lang')
     parser.add_argument('--dry-run', action='store_true', help='Только показать, что будет добавлено')
     args = parser.parse_args()
     
@@ -163,15 +163,7 @@ async def main():
       "lemma": "house",
       "pos": "noun",
       "cefr_level": "A1",
-      "target_lang": "en",
       "translations": ["дом", "жилище"]
-    },
-    {
-      "lemma": "run",
-      "pos": "verb",
-      "cefr_level": "A1",
-      "target_lang": "en",
-      "translations": ["бежать", "бегать"]
     }
   ]
 }
@@ -201,8 +193,7 @@ async def main():
         sys.exit(1)
     
     print(f"📊 Найдено слов: {len(words)}")
-    if args.lang:
-        print(f"🌍 Язык по умолчанию: {args.lang}")
+    print(f"🌍 Язык по умолчанию: {args.lang}")
     print(f"🔧 Режим: {'DRY RUN (без записи в БД)' if args.dry_run else 'REAL (запись в БД)'}")
     print("=" * 70)
     
