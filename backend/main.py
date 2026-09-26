@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import uuid
+import json
 from datetime import datetime, date
 
 from database import get_db, init_db
@@ -19,7 +20,7 @@ app = FastAPI(title="LingoFlow API", version="1.0.0")
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,6 +56,193 @@ class AddWordRequest(BaseModel):
     profile_id: str
     dictionary_id: str
     status: str = "active"
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    native_lang: str
+
+class ProfileResponse(BaseModel):
+    id: str
+    user_id: str
+    target_lang: str
+    cefr_level: str
+    current_lesson_number: int
+    words_per_lesson_limit: int
+    daily_lesson_limit: int
+
+
+# ==================== MOCK LLM ====================
+
+class MockLLMService:
+    """Моковый LLM для тестирования без OpenAI API"""
+    
+    @staticmethod
+    async def generate_sentences(word_groups: list, target_lang: str) -> list:
+        """Генерирует простые предложения для каждой группы слов"""
+        sentences = []
+        for group in word_groups:
+            words = [w.lemma for w in group]
+            # Простая логика: объединяем слова в предложение
+            if target_lang == "en":
+                sentence = f"The {' '.join(words)} is here."
+            elif target_lang == "de":
+                sentence = f"Der {' '.join(words)} ist hier."
+            elif target_lang == "es":
+                sentence = f"El {' '.join(words)} está aquí."
+            elif target_lang == "fr":
+                sentence = f"Le {' '.join(words)} est ici."
+            else:
+                sentence = f"{' '.join(words)}."
+            sentences.append(sentence)
+        return sentences
+    
+    @staticmethod
+    async def evaluate_translation(
+        sentence: str, 
+        user_translation: str, 
+        target_words: list,
+        native_lang: str
+    ) -> dict:
+        """Простая проверка: ищем переводы в тексте пользователя"""
+        word_results = []
+        
+        for word in target_words:
+            lemma = word["lemma"]
+            # Получаем переводы из БД (в реальном приложении)
+            # Здесь просто проверяем, есть ли слово в переводе
+            is_correct = lemma.lower() in user_translation.lower()
+            has_typo = False
+            
+            # Простая проверка опечаток
+            if not is_correct:
+                # Проверяем похожие слова (упрощённо)
+                for trans in word.get("translations", []):
+                    if trans.lower() in user_translation.lower():
+                        is_correct = True
+                        break
+            
+            word_results.append({
+                "word_id": word["id"],
+                "lemma": lemma,
+                "is_correct": is_correct,
+                "has_typo": has_typo
+            })
+        
+        overall_correct = all(w["is_correct"] for w in word_results)
+        
+        return {
+            "word_results": word_results,
+            "suggested_new_words": [],
+            "overall_correct": overall_correct
+        }
+
+
+# ==================== REAL LLM ====================
+
+class RealLLMService:
+    """Реальный LLM через OpenAI API"""
+    
+    @staticmethod
+    async def generate_sentences(word_groups: list, target_lang: str) -> list:
+        """Генерирует предложения через OpenAI API"""
+        import httpx
+        
+        groups_data = []
+        for group in word_groups:
+            groups_data.append({
+                "words": [{"lemma": w.lemma, "pos": w.pos} for w in group],
+            })
+        
+        prompt = f"""Generate exactly one natural sentence for each word group below.
+Each sentence must use ALL words from its group (in grammatically correct forms).
+Target language: {target_lang}
+CEFR level: A1-A2 (simple sentences)
+
+Word groups:
+{chr(10).join(f'Group {i+1}: {", ".join(w["lemma"] for w in g["words"])}' for i, g in enumerate(groups_data))}
+
+Return a JSON array of sentences, one per group:
+["sentence1", "sentence2", ...]"""
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
+                json={
+                    "model": settings.OPENAI_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.7,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            content = data["choices"][0]["message"]["content"]
+            sentences = json.loads(content)
+            if isinstance(sentences, dict):
+                sentences = list(sentences.values())[0] if sentences else []
+            return sentences
+    
+    @staticmethod
+    async def evaluate_translation(
+        sentence: str, 
+        user_translation: str, 
+        target_words: list,
+        native_lang: str
+    ) -> dict:
+        """Оценивает перевод через OpenAI API"""
+        import httpx
+        
+        target_words_str = "\n".join(
+            f'- {w["lemma"]} (pos: {w["pos"]})' for w in target_words
+        )
+        
+        prompt = f"""Evaluate the user's translation focusing ONLY on these target words:
+
+{target_words_str}
+
+Sentence (target language): "{sentence}"
+User's translation ({native_lang}): "{user_translation}"
+
+Instructions:
+1. Check if each target word is correctly translated
+2. Apply typo-tolerance: if the user made an obvious typo (1-2 letters off), mark as correct with has_typo=true
+3. Ignore accuracy of non-target words if overall meaning is preserved
+
+Return JSON:
+{{
+    "word_results": [
+        {{"word_id": "...", "lemma": "...", "is_correct": true/false, "has_typo": true/false}}
+    ],
+    "suggested_new_words": ["word1", "word2"],
+    "overall_correct": true/false
+}}"""
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
+                json={
+                    "model": settings.OPENAI_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            content = data["choices"][0]["message"]["content"]
+            return json.loads(content)
+
+
+# Выбрать LLM сервис
+LLMService = MockLLMService if settings.USE_MOCK_LLM else RealLLMService
 
 
 # ==================== AUTH ====================
@@ -95,7 +283,7 @@ class AuthService:
 
 class LessonService:
     @staticmethod
-    async def get_due_words(db: AsyncSession, profile_id: str, current_lesson: int) -> list[UserWord]:
+    async def get_due_words(db: AsyncSession, profile_id: str, current_lesson: int) -> list:
         result = await db.execute(
             select(UserWord).where(
                 UserWord.user_language_profile_id == profile_id,
@@ -107,7 +295,7 @@ class LessonService:
     
     @staticmethod
     async def get_new_words(db: AsyncSession, profile_id: str, target_lang: str, 
-                            limit: int, exclude_ids: set[str]) -> list[Dictionary]:
+                            limit: int, exclude_ids: set) -> list:
         # Get already learned word IDs
         result = await db.execute(
             select(UserWord.dictionary_id).where(
@@ -124,7 +312,7 @@ class LessonService:
         return list(result.scalars().all())
     
     @staticmethod
-    def cluster_words(words: list, target_count: int = 5) -> list[list]:
+    def cluster_words(words: list, target_count: int = 5) -> list:
         """Split words into groups of 2-3"""
         groups = []
         n = len(words)
@@ -214,7 +402,7 @@ class LessonService:
         # Cluster words
         word_groups = LessonService.cluster_words(today_words)
         
-        # Generate sentences via LLM (Prompt 1)
+        # Generate sentences via LLM
         sentences = await LLMService.generate_sentences(word_groups, profile.target_lang)
         
         # Create lesson
@@ -251,120 +439,14 @@ class LessonService:
         return {"lesson": lesson, "exercises": exercises, "resumed": False}
 
 
-# ==================== LLM SERVICE ====================
-
-class LLMService:
-    @staticmethod
-    async def generate_sentences(word_groups: list[list[Dictionary]], target_lang: str) -> list[str]:
-        """Prompt 1: Generate sentences for word groups"""
-        import httpx
-        
-        groups_data = []
-        for group in word_groups:
-            groups_data.append({
-                "words": [{"lemma": w.lemma, "pos": w.pos} for w in group],
-            })
-        
-        prompt = f"""Generate exactly one natural sentence for each word group below.
-Each sentence must use ALL words from its group (in grammatically correct forms).
-Target language: {target_lang}
-CEFR level: A1-A2 (simple sentences)
-
-Word groups:
-{chr(10).join(f'Group {i+1}: {", ".join(w["lemma"] for w in g["words"])}' for i, g in enumerate(groups_data))}
-
-Return a JSON array of sentences, one per group:
-["sentence1", "sentence2", ...]"""
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
-                json={
-                    "model": settings.OPENAI_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.7,
-                    "response_format": {"type": "json_object"},
-                },
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            # Log the call
-            # (Would save to llm_call_logs in production)
-            
-            content = data["choices"][0]["message"]["content"]
-            import json
-            sentences = json.loads(content)
-            if isinstance(sentences, dict):
-                sentences = list(sentences.values())[0] if sentences else []
-            return sentences
-    
-    @staticmethod
-    async def evaluate_translation(
-        sentence: str, 
-        user_translation: str, 
-        target_words: list[dict],
-        native_lang: str
-    ) -> dict:
-        """Prompt 2: Evaluate translation focusing only on target words"""
-        import httpx
-        
-        target_words_str = "\n".join(
-            f'- {w["lemma"]} (pos: {w["pos"]})' for w in target_words
-        )
-        
-        prompt = f"""Evaluate the user's translation focusing ONLY on these target words:
-
-{target_words_str}
-
-Sentence (target language): "{sentence}"
-User's translation ({native_lang}): "{user_translation}"
-
-Instructions:
-1. Check if each target word is correctly translated
-2. Apply typo-tolerance: if the user made an obvious typo (1-2 letters off), mark as correct with has_typo=true
-3. Ignore accuracy of non-target words if overall meaning is preserved
-4. Suggest any important words from the target words list that the user got wrong
-
-Return JSON:
-{{
-    "word_results": [
-        {{"word_id": "...", "lemma": "...", "is_correct": true/false, "has_typo": true/false}}
-    ],
-    "suggested_new_words": ["word1", "word2"],
-    "overall_correct": true/false
-}}"""
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
-                json={
-                    "model": settings.OPENAI_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.1,
-                    "response_format": {"type": "json_object"},
-                },
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            content = data["choices"][0]["message"]["content"]
-            import json
-            return json.loads(content)
-
-
 # ==================== ROUTES ====================
 
-@app.post("/api/auth/register")
+@app.post("/api/auth/register", response_model=UserResponse)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     user = await AuthService.register(db, req)
-    return {"id": user.id, "email": user.email, "name": user.name}
+    return user
 
-@app.post("/api/profile/setup")
+@app.post("/api/profile/setup", response_model=ProfileResponse)
 async def setup_profile(req: ProfileSetupRequest, user_id: str = "", db: AsyncSession = Depends(get_db)):
     profile = UserLanguageProfile(
         id=str(uuid.uuid4()),
@@ -374,9 +456,9 @@ async def setup_profile(req: ProfileSetupRequest, user_id: str = "", db: AsyncSe
     )
     db.add(profile)
     await db.flush()
-    return {"id": profile.id}
+    return profile
 
-@app.get("/api/profile/{profile_id}")
+@app.get("/api/profile/{profile_id}", response_model=ProfileResponse)
 async def get_profile(profile_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(UserLanguageProfile).where(UserLanguageProfile.id == profile_id)
@@ -505,7 +587,11 @@ async def get_user_words(profile_id: str, db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {
+        "status": "ok", 
+        "version": "1.0.0",
+        "mode": "mock_llm" if settings.USE_MOCK_LLM else "real_llm"
+    }
 
 
 if __name__ == "__main__":
