@@ -87,7 +87,21 @@ psql -h your-server-ip -U lingoflow -d lingoflow
 
 ## 7. Настройка .env для бэкенда
 
-Создать файл `backend/.env`:
+**Linux/Mac:**
+```bash
+cd backend
+cp .env.example .env
+nano .env
+```
+
+**Windows (PowerShell):**
+```powershell
+cd backend
+Copy-Item .env.example .env
+notepad .env
+```
+
+Содержимое `.env`:
 ```env
 DATABASE_URL=postgresql+asyncpg://lingoflow:your_secure_password_here@your-server-ip:5432/lingoflow
 SECRET_KEY=your-random-secret-key-here

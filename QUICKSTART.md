@@ -33,6 +33,7 @@ psql -h your-server-ip -U lingoflow -d lingoflow -f backend/init_db.sql
 
 ## 3. Настроить Backend
 
+**Linux/Mac:**
 ```bash
 cd backend
 python3 -m venv venv
@@ -40,6 +41,16 @@ source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 nano .env  # указать DATABASE_URL
+```
+
+**Windows (PowerShell):**
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+notepad .env  # указать DATABASE_URL
 ```
 
 ## 4. Проверить подключение

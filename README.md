@@ -60,22 +60,48 @@ psql -h your-server-ip -U lingoflow -d lingoflow -f backend/init_db.sql
 
 ### 2. Запуск Backend
 
+**Linux/Mac:**
 ```bash
 cd backend
 
 # Создать виртуальное окружение
 python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# или: venv\Scripts\activate  # Windows
+source venv/bin/activate
 
 # Установить зависимости
 pip install -r requirements.txt
 
 # Создать .env файл
 cp .env.example .env
-
-# Отредактировать .env
 nano .env
+# Указать:
+# DATABASE_URL=postgresql+asyncpg://lingoflow:password@server-ip:5432/lingoflow
+# OPENAI_API_KEY=sk-... (или оставить пустым для мокового режима)
+
+# Запустить сервер
+python main.py
+```
+
+**Windows (PowerShell):**
+```powershell
+cd backend
+
+# Создать виртуальное окружение
+python -m venv venv
+
+# Активировать
+.\venv\Scripts\Activate.ps1
+
+# Если ошибка про политики выполнения:
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+.\venv\Scripts\Activate.ps1
+
+# Установить зависимости
+pip install -r requirements.txt
+
+# Создать .env файл
+Copy-Item .env.example .env
+notepad .env
 # Указать:
 # DATABASE_URL=postgresql+asyncpg://lingoflow:password@server-ip:5432/lingoflow
 # OPENAI_API_KEY=sk-... (или оставить пустым для мокового режима)
