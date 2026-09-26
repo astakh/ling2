@@ -159,6 +159,16 @@ export async function updateProfile(
   });
 }
 
+export async function markWordLearned(profileId: string, dictionaryId: string): Promise<{ status: string; dictionary_id: string }> {
+  return request<{ status: string; dictionary_id: string }>('/words/mark-learned', {
+    method: 'POST',
+    body: JSON.stringify({ 
+      profile_id: profileId,
+      dictionary_id: dictionaryId 
+    }),
+  });
+}
+
 export async function getUserProfile(userId: string): Promise<Profile | null> {
   return request<Profile | null>(`/user/${userId}/profile`);
 }

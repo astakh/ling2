@@ -905,6 +905,37 @@ async def update_profile(profile_id: str, req: UpdateProfileRequest, db: AsyncSe
     await db.flush()
     return profile
 
+
+class MarkWordLearnedRequest(BaseModel):
+    profile_id: str
+    dictionary_id: str
+
+@app.post("/api/words/mark-learned")
+async def mark_word_learned(req: MarkWordLearnedRequest, db: AsyncSession = Depends(get_db)):
+    """Пометить слово как изученное"""
+    logger.info(f"[Word Mark] Marking word as learned: dictionary_id={req.dictionary_id}, profile_id={req.profile_id}")
+    
+    result = await db.execute(
+        select(UserWord).where(
+            UserWord.user_language_profile_id == req.profile_id,
+            UserWord.dictionary_id == req.dictionary_id
+        )
+    )
+    user_word = result.scalar_one_or_none()
+    
+    if not user_word:
+        raise HTTPException(status_code=404, detail="User word not found")
+    
+    # Пометить как изученное
+    user_word.status = "learned"
+    user_word.stage = 10  # Максимальный уровень
+    user_word.due_lesson_number = 999999  # Больше не будет повторяться
+    
+    await db.flush()
+    
+    logger.info(f"[Word Mark] Word {req.dictionary_id} marked as learned")
+    return {"status": "success", "dictionary_id": req.dictionary_id}
+
 @app.get("/api/stats/{user_id}")
 async def get_stats(user_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(UserStats).where(UserStats.user_id == user_id))

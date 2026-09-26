@@ -5,7 +5,7 @@ import { ArrowLeft, Check, Loader2, X } from 'lucide-react';
 import { getProfile, getUser } from '../store';
 import { startLesson, submitExerciseTranslation, completeLesson } from '../services/lessonService';
 import { DictionaryWord, LessonExercise } from '../types';
-import { EvaluationResult } from '../services/api';
+import { EvaluationResult, markWordLearned } from '../services/api';
 
 export default function Lesson() {
   const navigate = useNavigate();
@@ -116,6 +116,22 @@ export default function Lesson() {
     }
   };
 
+  const handleMarkAsLearned = async (dictionaryId: string) => {
+    if (!profile) return;
+    
+    console.log('[Lesson] Marking word as learned:', dictionaryId);
+    
+    try {
+      await markWordLearned(profile.id, dictionaryId);
+      console.log('[Lesson] Word marked as learned successfully');
+      
+      // Update local state
+      setIgnoredWords(prev => new Set([...prev, dictionaryId]));
+    } catch (error) {
+      console.error('[Lesson] Failed to mark word as learned:', error);
+    }
+  };
+
   if (!initialized || !currentExercise || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -188,7 +204,7 @@ export default function Lesson() {
                   {!isIgnored && (
                     <button
                       onClick={() => {
-                        setIgnoredWords(prev => new Set([...prev, word.id]));
+                        handleMarkAsLearned(word.id);
                       }}
                       className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-sm"
                       title="Пометить как выученное"

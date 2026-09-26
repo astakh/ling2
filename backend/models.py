@@ -97,7 +97,7 @@ class UserWord(Base):
     dictionary_id = Column(String(36), ForeignKey("dictionaries.id"), nullable=False)
     stage = Column(Integer, default=0)
     due_lesson_number = Column(Integer, default=1)
-    status = Column(String(20), default="active")  # active, ignored
+    status = Column(String(20), default="active")  # active, ignored, learned
     correct_count = Column(Integer, default=0)
     incorrect_count = Column(Integer, default=0)
     context_exercise_id = Column(String(36), nullable=True)
