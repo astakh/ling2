@@ -132,39 +132,77 @@ class MockLLMService:
         sentence: str, 
         user_translation: str, 
         target_words: list,
-        native_lang: str
+        native_lang: str,
+        db: AsyncSession = None
     ) -> dict:
-        """Простая проверка: ищем переводы в тексте пользователя"""
+        """Проверка перевода с получением переводов из БД"""
+        from sqlalchemy import select
+        from models import Dictionary, DictionaryTranslation
+        
         word_results = []
+        correct_translations = []
         
         for word in target_words:
+            word_id = word["id"]
             lemma = word["lemma"]
-            # Получаем переводы из БД (в реальном приложении)
-            # Здесь просто проверяем, есть ли слово в переводе
-            is_correct = lemma.lower() in user_translation.lower()
+            
+            # Получить переводы слова из БД
+            translations = []
+            if db:
+                result = await db.execute(
+                    select(DictionaryTranslation).where(
+                        DictionaryTranslation.dictionary_id == word_id,
+                        DictionaryTranslation.lang == native_lang
+                    )
+                )
+                trans_record = result.scalar_one_or_none()
+                if trans_record and trans_record.translations:
+                    translations = trans_record.translations if isinstance(trans_record.translations, list) else [trans_record.translations]
+            
+            # Если не нашли в БД, используем translations из word (если есть)
+            if not translations:
+                translations = word.get("translations", [])
+            
+            # Проверяем, есть ли ПЕРЕВОД слова в ответе пользователя
+            is_correct = False
             has_typo = False
             
-            # Простая проверка опечаток
-            if not is_correct:
-                # Проверяем похожие слова (упрощённо)
-                for trans in word.get("translations", []):
-                    if trans.lower() in user_translation.lower():
+            user_trans_lower = user_translation.lower()
+            
+            for trans in translations:
+                trans_lower = trans.lower()
+                if trans_lower in user_trans_lower:
+                    is_correct = True
+                    break
+                # Проверка на опечатку (расстояние Левенштейна <= 2)
+                elif len(trans_lower) > 3:
+                    # Простая проверка: если слова похожи
+                    if any(word_part in user_trans_lower for word_part in [trans_lower[:3], trans_lower[-3:]]):
+                        has_typo = True
                         is_correct = True
                         break
             
             word_results.append({
-                "word_id": word["id"],
+                "word_id": word_id,
                 "lemma": lemma,
+                "translation": translations[0] if translations else "N/A",
                 "is_correct": is_correct,
                 "has_typo": has_typo
             })
+            
+            if translations:
+                correct_translations.append(f"{lemma} = {translations[0]}")
         
         overall_correct = all(w["is_correct"] for w in word_results)
+        
+        # Генерируем правильный перевод предложения
+        correct_translation = f"{sentence} → {'; '.join(correct_translations)}"
         
         return {
             "word_results": word_results,
             "suggested_new_words": [],
-            "overall_correct": overall_correct
+            "overall_correct": overall_correct,
+            "correct_translation": correct_translation
         }
 
 
@@ -315,16 +353,43 @@ class GigaChatService:
         sentence: str, 
         user_translation: str, 
         target_words: list,
-        native_lang: str
+        native_lang: str,
+        db: AsyncSession = None
     ) -> dict:
         """Оценивает перевод через GigaChat API
         
         POST https://api.giga.chat/v1/chat/completions
         """
         import httpx
+        from sqlalchemy import select
+        from models import DictionaryTranslation
+        
+        # Получаем переводы слов из БД
+        words_with_translations = []
+        for word in target_words:
+            word_id = word["id"]
+            lemma = word["lemma"]
+            translations = []
+            
+            if db:
+                result = await db.execute(
+                    select(DictionaryTranslation).where(
+                        DictionaryTranslation.dictionary_id == word_id,
+                        DictionaryTranslation.lang == native_lang
+                    )
+                )
+                trans_record = result.scalar_one_or_none()
+                if trans_record and trans_record.translations:
+                    translations = trans_record.translations if isinstance(trans_record.translations, list) else [trans_record.translations]
+            
+            words_with_translations.append({
+                **word,
+                "translations": translations
+            })
         
         target_words_str = "\n".join(
-            f'- word_id: {w["id"]}, lemma: {w["lemma"]}, часть речи: {w["pos"]}' for w in target_words
+            f'- word_id: {w["id"]}, lemma: {w["lemma"]}, часть речи: {w["pos"]}, переводы: {", ".join(w["translations"]) if w["translations"] else "N/A"}' 
+            for w in words_with_translations
         )
         
         prompt = f"""Оцени перевод пользователя, фокусируясь ТОЛЬКО на этих целевых словах:
@@ -335,18 +400,20 @@ class GigaChatService:
 Перевод пользователя ({native_lang}): "{user_translation}"
 
 Инструкции:
-1. Проверь, правильно ли переведено каждое целевое слово
+1. Проверь, правильно ли переведено каждое целевое слово (сравни с переводами выше)
 2. Применяй толерантность к опечаткам: если пользователь сделал очевидную опечатку (1-2 буквы), отметь как правильное с has_typo=true
 3. Игнорируй точность перевода нецелевых слов, если общий смысл сохранён
 4. В поле word_id используй ТОЧНЫЕ ID из списка выше
+5. Предложи правильный перевод всего предложения
 
 Верни ТОЛЬКО JSON без дополнительного текста в формате:
 {{
     "word_results": [
-        {{"word_id": "точное_id_из_списка", "lemma": "слово", "is_correct": true, "has_typo": false}}
+        {{"word_id": "точное_id_из_списка", "lemma": "слово", "translation": "перевод", "is_correct": true, "has_typo": false}}
     ],
     "suggested_new_words": [],
-    "overall_correct": true
+    "overall_correct": true,
+    "correct_translation": "правильный перевод предложения на русский"
 }}"""
         
         token = await GigaChatService._get_access_token()
@@ -751,6 +818,7 @@ async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = D
         req.translation,
         target_words,
         user.native_lang,
+        db=db,  # Передаём сессию БД для получения переводов
     )
     
     # Update exercise

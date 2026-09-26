@@ -41,11 +41,13 @@ export interface EvaluationResult {
   word_results: WordResult[];
   suggested_new_words: string[];
   overall_correct: boolean;
+  correct_translation?: string;
 }
 
 export interface WordResult {
   word_id: string;
   lemma: string;
+  translation?: string;
   is_correct: boolean;
   has_typo: boolean;
 }

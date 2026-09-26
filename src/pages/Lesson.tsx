@@ -272,9 +272,18 @@ export default function Lesson() {
                   )}
                 </div>
                 
-                <div className="text-sm text-gray-600 mb-4 bg-white/60 rounded-lg p-3">
-                  <span className="text-gray-400">Твой перевод:</span>{' '}
-                  <span className="font-medium text-gray-800">{translation}</span>
+                <div className="space-y-3">
+                  <div className="text-sm bg-white/60 rounded-lg p-3">
+                    <span className="text-gray-400">Твой перевод:</span>{' '}
+                    <span className="font-medium text-gray-800">{translation}</span>
+                  </div>
+                  
+                  {currentResult?.correct_translation && (
+                    <div className="text-sm bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <span className="text-blue-600 font-medium">💡 Правильный перевод:</span>{' '}
+                      <span className="text-gray-800">{currentResult.correct_translation}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Word results */}
@@ -282,6 +291,7 @@ export default function Lesson() {
                   {currentResult?.word_results.map(wr => {
                     const word = targetWords.find(w => w.id === wr.word_id);
                     const translations = word?.translations[user?.nativeLang || 'ru'] || [];
+                    const correctTranslation = wr.translation || translations[0] || '';
                     return (
                       <motion.div
                         key={wr.word_id}
@@ -301,7 +311,7 @@ export default function Lesson() {
                         <div className="flex-1">
                           <span className="font-semibold text-gray-800">{wr.lemma}</span>
                           <span className="text-gray-500 text-sm ml-2">
-                            → {translations.join(', ')}
+                            → {correctTranslation}
                           </span>
                         </div>
                         {wr.has_typo && (
