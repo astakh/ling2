@@ -45,11 +45,18 @@ export interface LessonSession {
 
 // Start a new lesson via API
 export async function startLesson(): Promise<LessonSession | null> {
+  console.log('[LessonService] startLesson() called');
   const profileId = getProfileId();
-  if (!profileId) return null;
+  console.log('[LessonService] Profile ID:', profileId);
+  if (!profileId) {
+    console.error('[LessonService] No profile ID found');
+    return null;
+  }
   
   try {
+    console.log('[LessonService] Calling API startLesson...');
     const response = await apiStartLesson(profileId);
+    console.log('[LessonService] API response:', response);
     
     // Get dictionary words for target_word_ids
     const profile = JSON.parse(localStorage.getItem('lingo_profile') || '{}');

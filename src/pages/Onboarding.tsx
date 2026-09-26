@@ -66,7 +66,9 @@ export default function Onboarding() {
     setError('');
     
     try {
+      console.log('[Onboarding] Registering user:', { name, email });
       const user = await registerUser(name, email);
+      console.log('[Onboarding] User registered:', user);
       setUserId(user.id);
       saveUser({
         id: user.id,
@@ -76,8 +78,10 @@ export default function Onboarding() {
         timezone: 'UTC',
         createdAt: new Date().toISOString(),
       });
+      console.log('[Onboarding] User saved to store, moving to step 1');
       setStep(1);
     } catch (err) {
+      console.error('[Onboarding] Registration error:', err);
       setError('Ошибка регистрации. Попробуйте другой email.');
     } finally {
       setLoading(false);
@@ -89,6 +93,7 @@ export default function Onboarding() {
     setError('');
     
     try {
+      console.log('[Onboarding] Setting up profile:', { userId, nativeLang, targetLang, level, intensity });
       const profile = await setupProfile(
         userId,
         nativeLang,
@@ -96,6 +101,7 @@ export default function Onboarding() {
         level,
         intensity
       );
+      console.log('[Onboarding] Profile created:', profile);
       
       saveProfile({
         id: profile.id,
@@ -108,8 +114,10 @@ export default function Onboarding() {
         createdAt: new Date().toISOString(),
       });
       
+      console.log('[Onboarding] Profile saved, navigating to dashboard');
       navigate('/dashboard');
     } catch (err) {
+      console.error('[Onboarding] Profile setup error:', err);
       setError('Ошибка сохранения профиля. Попробуйте снова.');
     } finally {
       setLoading(false);

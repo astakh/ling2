@@ -24,20 +24,28 @@ export default function Lesson() {
 
   // Initialize lesson
   useEffect(() => {
+    console.log('[Lesson] Component mounted');
+    console.log('[Lesson] User:', user);
+    console.log('[Lesson] Profile:', profile);
     loadLesson();
   }, []);
 
   const loadLesson = async () => {
+    console.log('[Lesson] Loading lesson...');
     const session = await startLesson();
+    console.log('[Lesson] Session received:', session);
     if (!session) {
+      console.error('[Lesson] No session, navigating to dashboard');
       navigate('/dashboard');
       return;
     }
     
+    console.log('[Lesson] Setting up lesson state');
     setLesson(session.lesson);
     setExercises(session.exercises);
     setExerciseIndex(session.currentExerciseIndex);
     setInitialized(true);
+    console.log('[Lesson] Lesson initialized successfully');
   };
 
   // Update target words when exercise changes

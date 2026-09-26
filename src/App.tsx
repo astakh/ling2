@@ -9,6 +9,8 @@ import Vocabulary from './pages/Vocabulary';
 
 function App() {
   const user = getUser();
+  console.log('[App] User from store:', user);
+  console.log('[App] Current path:', window.location.pathname);
   
   return (
     <BrowserRouter>

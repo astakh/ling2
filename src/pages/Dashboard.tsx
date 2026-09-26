@@ -25,27 +25,36 @@ export default function Dashboard() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    console.log('[Dashboard] Component mounted, user:', user, 'profile:', profile);
     loadData();
   }, []);
 
   const loadData = async () => {
+    console.log('[Dashboard] Loading data...');
     setLoading(true);
     const [statsData, wordsData] = await Promise.all([
       fetchStats(),
       fetchUserWords(),
     ]);
+    console.log('[Dashboard] Data loaded:', { stats: statsData, words: wordsData });
     setStats(statsData);
     setUserWords(wordsData);
     setLoading(false);
   };
 
   const handleStartLesson = async () => {
+    console.log('[Dashboard] Starting lesson...');
+    console.log('[Dashboard] Current user:', user);
+    console.log('[Dashboard] Current profile:', profile);
     setError('');
     const session = await startLesson();
+    console.log('[Dashboard] Lesson session:', session);
     if (!session) {
+      console.error('[Dashboard] Failed to start lesson');
       setError('Не удалось начать урок. Попробуйте позже.');
       return;
     }
+    console.log('[Dashboard] Navigating to /lesson');
     navigate('/lesson');
   };
 

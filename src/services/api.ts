@@ -75,6 +75,7 @@ export interface EvaluationResult {
 }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  console.log('[API] Request:', url, options);
   const response = await fetch(`${API_BASE}${url}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -82,12 +83,17 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   
+  console.log('[API] Response status:', response.status);
+  
   if (!response.ok) {
     const error = await response.text();
+    console.error('[API] Error response:', error);
     throw new Error(`API Error: ${response.status} - ${error}`);
   }
   
-  return response.json();
+  const data = await response.json();
+  console.log('[API] Response data:', data);
+  return data;
 }
 
 // ==================== AUTH ====================
