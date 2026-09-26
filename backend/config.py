@@ -1,6 +1,12 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
 import os
+from pathlib import Path
+
+
+# Путь к директории, где находится этот файл (backend/)
+BACKEND_DIR = Path(__file__).parent.resolve()
+ENV_FILE = BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -20,7 +26,7 @@ class Settings(BaseSettings):
     USE_MOCK_LLM: bool = True  # True = использовать моковый LLM без API ключа
 
     class Config:
-        env_file = ".env"
+        env_file = str(ENV_FILE)
         env_file_encoding = "utf-8"
 
 

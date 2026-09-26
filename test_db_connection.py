@@ -4,12 +4,17 @@
 """
 import asyncio
 import sys
+import os
+from pathlib import Path
+
+# Добавить backend в путь для импорта config
+backend_dir = Path(__file__).parent / 'backend'
+sys.path.insert(0, str(backend_dir))
+
+# Теперь можно импортировать config
+from config import settings
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
-
-# Загрузить настройки
-sys.path.insert(0, 'backend')
-from config import settings
 
 
 async def test_connection():

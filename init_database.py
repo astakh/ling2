@@ -15,8 +15,10 @@ import argparse
 from pathlib import Path
 
 # Добавить backend в путь для импорта config
-sys.path.insert(0, str(Path(__file__).parent / 'backend'))
+backend_dir = Path(__file__).parent / 'backend'
+sys.path.insert(0, str(backend_dir))
 
+# Теперь можно импортировать
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 from config import settings
