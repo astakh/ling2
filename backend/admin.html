@@ -319,7 +319,10 @@
         <div id="adminPanel" class="admin-panel">
             <div class="header">
                 <h1>📊 LingoFlow Admin Panel</h1>
-                <button class="logout-btn" onclick="logout()">Выйти</button>
+                <div>
+                    <button class="logout-btn" onclick="refreshData()" style="background: #4CAF50; margin-right: 10px;">🔄 Обновить</button>
+                    <button class="logout-btn" onclick="logout()">Выйти</button>
+                </div>
             </div>
             
             <div id="statsGrid" class="stats-grid"></div>
@@ -337,7 +340,7 @@
     </div>
     
     <script>
-        const API_BASE = 'http://localhost:8000';
+        // Используем относительные пути, так как админка на том же домене
         let adminPassword = '';
         
         // Login form
@@ -346,11 +349,13 @@
             const password = document.getElementById('password').value;
             
             try {
-                const response = await fetch(`${API_BASE}/admin/auth`, {
+                console.log('Authenticating...');
+                const response = await fetch('/admin/auth', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password })
                 });
+                console.log('Auth response:', response.status);
                 
                 if (!response.ok) {
                     throw new Error('Неверный пароль');
@@ -371,8 +376,11 @@
         // Load statistics
         async function loadStats() {
             try {
-                const response = await fetch(`${API_BASE}/admin/stats?password=${adminPassword}`);
+                console.log('Loading stats...');
+                const response = await fetch(`/admin/stats?password=${adminPassword}`);
+                console.log('Stats response:', response.status);
                 const data = await response.json();
+                console.log('Stats data:', data);
                 
                 const statsGrid = document.getElementById('statsGrid');
                 statsGrid.innerHTML = '';
@@ -388,14 +396,19 @@
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);
+                const statsGrid = document.getElementById('statsGrid');
+                statsGrid.innerHTML = `<p style="color: #c33; padding: 20px;">Ошибка загрузки статистики: ${error.message}</p>`;
             }
         }
         
         // Load tables list
         async function loadTables() {
             try {
-                const response = await fetch(`${API_BASE}/admin/tables?password=${adminPassword}`);
+                console.log('Loading tables...');
+                const response = await fetch(`/admin/tables?password=${adminPassword}`);
+                console.log('Tables response:', response.status);
                 const data = await response.json();
+                console.log('Tables data:', data);
                 
                 const tableList = document.getElementById('tableList');
                 tableList.innerHTML = '';
@@ -409,6 +422,8 @@
                 });
             } catch (error) {
                 console.error('Error loading tables:', error);
+                const tableList = document.getElementById('tableList');
+                tableList.innerHTML = `<p style="color: #c33; padding: 20px;">Ошибка загрузки таблиц: ${error.message}</p>`;
             }
         }
         
@@ -427,15 +442,21 @@
             dataContent.innerHTML = '<div class="loading"><div class="spinner"></div>Загрузка...</div>';
             
             try {
-                const response = await fetch(`${API_BASE}/admin/table/${tableName}?password=${adminPassword}&limit=100`);
+                console.log('Loading table data for:', tableName);
+                const response = await fetch(`/admin/table/${tableName}?password=${adminPassword}&limit=100`);
+                console.log('Table data response:', response.status);
                 const data = await response.json();
+                console.log('Table data:', data);
                 
                 if (data.data.length === 0) {
                     dataContent.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Таблица пуста</p>';
                     return;
                 }
                 
-                let html = '<div class="table-container"><table class="data-table">';
+                // Показываем количество записей
+                const countInfo = `<p style="color: #666; margin-bottom: 10px;">Записей: ${data.count}</p>`;
+                
+                let html = countInfo + '<div class="table-container"><table class="data-table">';
                 html += '<thead><tr>';
                 data.columns.forEach(col => {
                     html += `<th>${col}</th>`;
@@ -462,6 +483,13 @@
             } catch (error) {
                 dataContent.innerHTML = `<p style="color: red; text-align: center; padding: 40px;">Ошибка загрузки: ${error.message}</p>`;
             }
+        }
+        
+        // Refresh data
+        function refreshData() {
+            console.log('Refreshing data...');
+            loadStats();
+            loadTables();
         }
         
         // Logout
