@@ -1066,6 +1066,52 @@ async def get_user_words(profile_id: str, db: AsyncSession = Depends(get_db)):
     words = result.scalars().all()
     return words
 
+@app.get("/api/dictionary/{target_lang}")
+async def get_dictionary(target_lang: str, db: AsyncSession = Depends(get_db)):
+    """Получить словарь для указанного языка с переводами"""
+    logger.info(f"[Dictionary] Fetching dictionary for language: {target_lang}")
+    
+    # Получить все слова для языка
+    result = await db.execute(
+        select(Dictionary).where(Dictionary.target_lang == target_lang)
+    )
+    words = result.scalars().all()
+    
+    # Получить переводы для всех слов
+    word_ids = [w.id for w in words]
+    if word_ids:
+        trans_result = await db.execute(
+            select(DictionaryTranslation).where(
+                DictionaryTranslation.dictionary_id.in_(word_ids),
+                DictionaryTranslation.lang == "ru"
+            )
+        )
+        translations_list = trans_result.scalars().all()
+        
+        # Создать словарь переводов
+        translations_map = {}
+        for trans in translations_list:
+            translations_map[trans.dictionary_id] = trans.translations
+    else:
+        translations_map = {}
+    
+    # Сформировать ответ
+    dictionary = []
+    for word in words:
+        dictionary.append({
+            "id": word.id,
+            "targetLang": word.target_lang,
+            "lemma": word.lemma,
+            "pos": word.pos,
+            "cefrLevel": word.cefr_level,
+            "translations": {
+                "ru": translations_map.get(word.id, [])
+            }
+        })
+    
+    logger.info(f"[Dictionary] Found {len(dictionary)} words for {target_lang}")
+    return {"words": dictionary}
+
 @app.get("/api/health")
 async def health():
     return {

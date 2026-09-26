@@ -1,7 +1,6 @@
-import { startLesson as apiStartLesson, submitTranslation, completeLesson as apiCompleteLesson, getUserWords, getStats, EvaluationResult, CompleteLessonResponse } from './api';
+import { startLesson as apiStartLesson, submitTranslation, completeLesson as apiCompleteLesson, getUserWords, getStats, getDictionaryFromAPI, EvaluationResult, CompleteLessonResponse, DictionaryWordFromAPI } from './api';
 import { getProfileId } from '../store';
 import { DictionaryWord, Lesson, LessonExercise } from '../types';
-import { getDictionary } from '../data/dictionaries';
 
 // Cluster words into groups of 2-3
 function clusterWords(words: DictionaryWord[]): DictionaryWord[][] {
@@ -58,22 +57,39 @@ export async function startLesson(forceNew: boolean = false): Promise<LessonSess
     const response = await apiStartLesson(profileId, forceNew);
     console.log('[LessonService] API response:', response);
     
-    // Get dictionary words for target_word_ids
+    // Get profile to determine target language
     const profile = JSON.parse(localStorage.getItem('lingo_profile') || '{}');
-    const dictionary = getDictionary(profile.targetLang || 'en');
+    const targetLang = profile.targetLang || 'en';
     
-    // Collect all unique word IDs
+    // Fetch dictionary from API (real data from database)
+    console.log('[LessonService] Fetching dictionary from API for language:', targetLang);
+    const dictionaryFromAPI = await getDictionaryFromAPI(targetLang);
+    console.log('[LessonService] Dictionary loaded:', dictionaryFromAPI.length, 'words');
+    
+    // Collect all unique word IDs from exercises
     const allWordIds = new Set<string>();
     response.exercises.forEach(ex => {
       ex.target_word_ids.forEach((id: string) => allWordIds.add(id));
     });
     
-    // Get dictionary words
+    // Get dictionary words that match the exercise word IDs
     const todayWords: DictionaryWord[] = [];
     allWordIds.forEach(id => {
-      const word = dictionary.find(d => d.id === id);
-      if (word) todayWords.push(word);
+      const word = dictionaryFromAPI.find((w: DictionaryWordFromAPI) => w.id === id);
+      if (word) {
+        // Convert API format to DictionaryWord format
+        todayWords.push({
+          id: word.id,
+          targetLang: word.targetLang as any,
+          lemma: word.lemma,
+          pos: word.pos,
+          cefrLevel: word.cefrLevel as any,
+          translations: word.translations,
+        });
+      }
     });
+    
+    console.log('[LessonService] Today words:', todayWords.length);
     
     // Cluster words (for display purposes)
     const wordGroups = clusterWords(todayWords);

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Check, Loader2, X } from 'lucide-react';
 import { getProfile, getUser } from '../store';
-import { getDictionary } from '../data/dictionaries';
 import { startLesson, submitExerciseTranslation, completeLesson } from '../services/lessonService';
 import { DictionaryWord, LessonExercise } from '../types';
 import { EvaluationResult } from '../services/api';
@@ -31,6 +30,8 @@ export default function Lesson() {
     loadLesson();
   }, []);
 
+  const [todayWords, setTodayWords] = useState<DictionaryWord[]>([]);
+
   const loadLesson = async () => {
     console.log('[Lesson] Loading lesson...');
     const session = await startLesson();
@@ -45,23 +46,25 @@ export default function Lesson() {
     setLesson(session.lesson);
     setExercises(session.exercises);
     setExerciseIndex(session.currentExerciseIndex);
+    setTodayWords(session.todayWords); // Save today's words from API
     setInitialized(true);
-    console.log('[Lesson] Lesson initialized successfully');
+    console.log('[Lesson] Lesson initialized successfully, todayWords:', session.todayWords.length);
   };
 
   // Update target words when exercise changes
   useEffect(() => {
-    if (exercises.length > 0 && exerciseIndex >= 0 && exerciseIndex < exercises.length && profile) {
+    if (exercises.length > 0 && exerciseIndex >= 0 && exerciseIndex < exercises.length) {
       const exercise = exercises[exerciseIndex];
-      if (exercise) {
-        const dictionary = getDictionary(profile.targetLang);
+      if (exercise && todayWords.length > 0) {
+        // Use todayWords from API instead of local dictionary
         const words = exercise.targetWordIds
-          .map((id: string) => dictionary.find(d => d.id === id))
+          .map((id: string) => todayWords.find(d => d.id === id))
           .filter((w: DictionaryWord | undefined): w is DictionaryWord => w !== undefined);
+        console.log('[Lesson] Target words for exercise:', words.length, words.map(w => w.lemma));
         setTargetWords(words);
       }
     }
-  }, [exercises, exerciseIndex, profile]);
+  }, [exercises, exerciseIndex, todayWords]);
 
   const currentExercise = exerciseIndex >= 0 ? exercises[exerciseIndex] : null;
 

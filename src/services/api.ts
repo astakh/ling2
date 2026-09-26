@@ -214,6 +214,22 @@ export async function addWord(
   });
 }
 
+// ==================== DICTIONARY ====================
+
+export interface DictionaryWordFromAPI {
+  id: string;
+  targetLang: string;
+  lemma: string;
+  pos: string;
+  cefrLevel: string;
+  translations: Record<string, string[]>;
+}
+
+export async function getDictionaryFromAPI(targetLang: string): Promise<DictionaryWordFromAPI[]> {
+  const response = await request<{ words: DictionaryWordFromAPI[] }>(`/dictionary/${targetLang}`);
+  return response.words;
+}
+
 // ==================== HEALTH ====================
 
 export async function healthCheck(): Promise<{ status: string; version: string; mode: string }> {
