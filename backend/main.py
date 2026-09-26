@@ -283,13 +283,23 @@ class GigaChatService:
                 "words": [{"lemma": w.lemma, "pos": w.pos} for w in group],
             })
         
+        # Формируем промпт с информацией о частях речи
+        groups_info = []
+        for i, g in enumerate(groups_data):
+            words_info = [f'{w["lemma"]} ({w["pos"]})' for w in g["words"]]
+            groups_info.append(f'Группа {i+1}: {", ".join(words_info)}')
+        
         prompt = f"""Сгенерируй ровно по одному естественному предложению для каждой группы слов ниже.
-Каждое предложение должно использовать ВСЕ слова из своей группы (в грамматически правильных формах).
-Целевой язык: {target_lang}
-Уровень CEFR: A1-A2 (простые предложения)
+
+Требования:
+1. Каждое предложение должно использовать ВСЕ слова из своей группы
+2. Используй слова в грамматически правильных формах (спряжения, склонения)
+3. Предложения должны быть естественными и осмысленными
+4. Целевой язык: {target_lang}
+5. Уровень CEFR: A1-A2 (простые предложения)
 
 Группы слов:
-{chr(10).join(f'Группа {i+1}: {", ".join(w["lemma"] for w in g["words"])}' for i, g in enumerate(groups_data))}
+{chr(10).join(groups_info)}
 
 Верни ТОЛЬКО JSON массив предложений, по одному на группу, без дополнительного текста:
 ["предложение1", "предложение2", ...]"""
@@ -297,6 +307,8 @@ class GigaChatService:
         token = await GigaChatService._get_access_token()
         
         logger.info(f"[GigaChat] Generating sentences for {len(word_groups)} word groups")
+        logger.info(f"[GigaChat] Word groups: {groups_data}")
+        logger.debug(f"[GigaChat] Prompt:\n{prompt}")
         
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
@@ -326,7 +338,8 @@ class GigaChatService:
             data = response.json()
             content = data["choices"][0]["message"]["content"]
             
-            logger.debug(f"[GigaChat] Raw response: {content}")
+            logger.info(f"[GigaChat] Raw response received")
+            logger.debug(f"[GigaChat] Raw response content: {content}")
             
             # Попробовать распарсить JSON
             try:
@@ -653,8 +666,12 @@ class LessonService:
         # Cluster words
         word_groups = LessonService.cluster_words(today_words)
         
+        logger.info(f"[LessonService] Starting sentence generation for {len(word_groups)} word groups")
+        
         # Generate sentences via LLM
         sentences = await LLMService.generate_sentences(word_groups, profile.target_lang)
+        
+        logger.info(f"[LessonService] Generated {len(sentences)} sentences: {sentences}")
         
         # Create lesson
         lesson_number = profile.current_lesson_number + 1
