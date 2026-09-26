@@ -34,7 +34,7 @@
 - **`lemma`** (string) — начальная форма слова
 - **`pos`** (string) — часть речи
 - **`cefr_level`** (string) — уровень CEFR
-- **`target_lang`** (string) — изучаемый язык
+- **`target_lang`** (string) — изучаемый язык (можно указать через `--lang` вместо поля в JSON)
 - **`translations`** (array of strings) — массив переводов на русский
 
 ### Допустимые значения
@@ -87,6 +87,16 @@ python import_dictionary.py
 python import_dictionary.py --file my_words.json
 ```
 
+### Указать язык по умолчанию
+
+Если в вашем JSON-файле нет поля `target_lang`, используйте параметр `--lang`:
+
+```bash
+python import_dictionary.py --lang en
+```
+
+Это добавит все слова с `target_lang: "en"`.
+
 ### Тестовый прогон (dry-run)
 
 ```bash
@@ -98,7 +108,7 @@ python import_dictionary.py --dry-run
 ### Комбинирование параметров
 
 ```bash
-python import_dictionary.py --file custom_words.json --dry-run
+python import_dictionary.py --file custom_words.json --lang de --dry-run
 ```
 
 ## Примеры

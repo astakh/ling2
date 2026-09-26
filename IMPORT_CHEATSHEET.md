@@ -14,6 +14,9 @@ source venv/bin/activate  # Linux/Mac
 # Импортировать слова из words.json (пример уже включён)
 python import_dictionary.py
 
+# Указать язык по умолчанию (если в файле нет target_lang)
+python import_dictionary.py --lang en
+
 # Тестовый прогон (без записи в БД)
 python import_dictionary.py --dry-run
 

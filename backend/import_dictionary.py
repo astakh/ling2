@@ -5,6 +5,7 @@
 Использование:
     python import_dictionary.py                          # Импорт из words.json
     python import_dictionary.py --file custom_words.json # Импорт из другого файла
+    python import_dictionary.py --lang en                # Указать язык по умолчанию
     python import_dictionary.py --dry-run                # Тестовый прогон
 """
 import asyncio
@@ -28,7 +29,7 @@ VALID_LANGS = ["en", "de", "es", "fr", "ru", "it", "pt", "zh", "ja", "ko"]
 VALID_CEFR = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
 
-def validate_word(word_data: dict, index: int) -> tuple[bool, list[str]]:
+def validate_word(word_data: dict, index: int, default_lang: str = None) -> tuple[bool, list[str]]:
     """Валидация данных слова"""
     errors = []
     
@@ -36,10 +37,12 @@ def validate_word(word_data: dict, index: int) -> tuple[bool, list[str]]:
     if not word_data.get("lemma"):
         errors.append(f"Слово #{index+1}: отсутствует lemma")
     
-    if not word_data.get("target_lang"):
-        errors.append(f"Слово #{index+1}: отсутствует target_lang")
-    elif word_data["target_lang"] not in VALID_LANGS:
-        errors.append(f"Слово #{index+1}: неверный target_lang '{word_data['target_lang']}'")
+    # Проверка target_lang (с поддержкой default_lang)
+    target_lang = word_data.get("target_lang") or default_lang
+    if not target_lang:
+        errors.append(f"Слово #{index+1}: отсутствует target_lang (используйте --lang для указания)")
+    elif target_lang not in VALID_LANGS:
+        errors.append(f"Слово #{index+1}: неверный target_lang '{target_lang}'")
     
     if not word_data.get("pos"):
         errors.append(f"Слово #{index+1}: отсутствует pos")
@@ -61,14 +64,14 @@ def validate_word(word_data: dict, index: int) -> tuple[bool, list[str]]:
     return len(errors) == 0, errors
 
 
-async def import_words(session: AsyncSession, words: list, dry_run: bool = False) -> dict:
+async def import_words(session: AsyncSession, words: list, dry_run: bool = False, default_lang: str = None) -> dict:
     """Импорт слов в базу данных"""
     stats = {"added": 0, "skipped": 0, "errors": 0, "validation_errors": 0}
     
     for index, word_data in enumerate(words):
         try:
             # Валидация
-            is_valid, errors = validate_word(word_data, index)
+            is_valid, errors = validate_word(word_data, index, default_lang)
             if not is_valid:
                 for error in errors:
                     print(f"  ❌ {error}")
@@ -79,7 +82,7 @@ async def import_words(session: AsyncSession, words: list, dry_run: bool = False
             lemma = word_data["lemma"].strip()
             pos = word_data["pos"].strip()
             cefr_level = word_data["cefr_level"].strip()
-            target_lang = word_data["target_lang"].strip()
+            target_lang = (word_data.get("target_lang") or default_lang).strip()
             translations = word_data["translations"]
             
             # Проверить уникальность
@@ -138,8 +141,15 @@ async def import_words(session: AsyncSession, words: list, dry_run: bool = False
 async def main():
     parser = argparse.ArgumentParser(description='Импорт слов из JSON-файла в базу данных')
     parser.add_argument('--file', type=str, default='words.json', help='Путь к JSON-файлу (по умолчанию: words.json)')
+    parser.add_argument('--lang', type=str, help='Язык по умолчанию (en, de, es, fr). Используется если в файле нет target_lang')
     parser.add_argument('--dry-run', action='store_true', help='Только показать, что будет добавлено')
     args = parser.parse_args()
+    
+    # Проверка параметра --lang
+    if args.lang and args.lang not in VALID_LANGS:
+        print(f"❌ Неверный язык: {args.lang}")
+        print(f"Допустимые значения: {', '.join(VALID_LANGS)}")
+        sys.exit(1)
     
     # Проверить наличие файла
     file_path = Path(args.file)
@@ -191,6 +201,8 @@ async def main():
         sys.exit(1)
     
     print(f"📊 Найдено слов: {len(words)}")
+    if args.lang:
+        print(f"🌍 Язык по умолчанию: {args.lang}")
     print(f"🔧 Режим: {'DRY RUN (без записи в БД)' if args.dry_run else 'REAL (запись в БД)'}")
     print("=" * 70)
     
@@ -199,7 +211,7 @@ async def main():
     engine = create_async_engine(settings.DATABASE_URL, echo=False)
     
     async with engine.begin() as session:
-        stats = await import_words(session, words, args.dry_run)
+        stats = await import_words(session, words, args.dry_run, args.lang)
     
     await engine.dispose()
     

@@ -184,6 +184,9 @@ python import_dictionary.py
 # Импорт из другого файла
 python import_dictionary.py --file my_words.json
 
+# Указать язык по умолчанию (если в файле нет target_lang)
+python import_dictionary.py --lang en
+
 # Тестовый прогон (без записи в БД)
 python import_dictionary.py --dry-run
 ```
@@ -206,6 +209,7 @@ python import_dictionary.py --dry-run
 
 **Параметры:**
 - `--file` — путь к JSON-файлу (по умолчанию: `words.json`)
+- `--lang` — язык по умолчанию (en, de, es, fr), если в файле нет поля `target_lang`
 - `--dry-run` — только показать, что будет добавлено
 
 Пример файла `words.json` с 20 английскими словами уже включён в проект.
