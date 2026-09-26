@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     
     # GigaChat API
     GIGACHAT_CREDENTIALS: str = ""  # Authorization key для GigaChat
-    GIGACHAT_MODEL: str = "GigaChat"  # GigaChat, GigaChat-Plus, GigaChat-Pro, GigaChat-2-Max
+    GIGACHAT_MODEL: str = "GigaChat-2-Max"  # Доступные: GigaChat-2-Max, GigaChat-Plus, GigaChat-Pro, GigaChat-3-Ultra
     GIGACHAT_OAUTH_URL: str = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
     GIGACHAT_API_URL: str = "https://api.giga.chat/v1"
     GIGACHAT_SCOPE: str = "GIGACHAT_API_PERS"  # GIGACHAT_API_PERS, GIGACHAT_API_B2B, GIGACHAT_API_CORP
