@@ -148,14 +148,17 @@ export async function getStats(userId: string): Promise<Stats> {
 
 // ==================== LESSONS ====================
 
-export async function startLesson(profileId: string): Promise<{
+export async function startLesson(profileId: string, forceNew: boolean = false): Promise<{
   lesson: Lesson;
   exercises: LessonExercise[];
   resumed: boolean;
 }> {
   return request('/lesson/start', {
     method: 'POST',
-    body: JSON.stringify({ profile_id: profileId }),
+    body: JSON.stringify({ 
+      profile_id: profileId,
+      force_new: forceNew 
+    }),
   });
 }
 

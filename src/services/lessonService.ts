@@ -44,8 +44,8 @@ export interface LessonSession {
 }
 
 // Start a new lesson via API
-export async function startLesson(): Promise<LessonSession | null> {
-  console.log('[LessonService] startLesson() called');
+export async function startLesson(forceNew: boolean = false): Promise<LessonSession | null> {
+  console.log('[LessonService] startLesson() called, forceNew:', forceNew);
   const profileId = getProfileId();
   console.log('[LessonService] Profile ID:', profileId);
   if (!profileId) {
@@ -54,8 +54,8 @@ export async function startLesson(): Promise<LessonSession | null> {
   }
   
   try {
-    console.log('[LessonService] Calling API startLesson...');
-    const response = await apiStartLesson(profileId);
+    console.log('[LessonService] Calling API startLesson with forceNew:', forceNew);
+    const response = await apiStartLesson(profileId, forceNew);
     console.log('[LessonService] API response:', response);
     
     // Get dictionary words for target_word_ids

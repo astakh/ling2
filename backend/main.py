@@ -76,6 +76,7 @@ class SetupProfileRequest(BaseModel):
 
 class StartLessonRequest(BaseModel):
     profile_id: str
+    force_new: bool = False  # Принудительно создать новый урок
 
 class SubmitTranslationRequest(BaseModel):
     exercise_id: str
@@ -626,6 +627,54 @@ class LessonService:
             )
             exercises = list(exercises_result.scalars().all())
             return {"lesson": in_progress, "exercises": exercises, "resumed": True}
+    
+    @staticmethod
+    async def start_lesson(db: AsyncSession, user_id: str, profile_id: str, force_new: bool = False) -> dict:
+        logger.info(f"[LessonService.start_lesson] user_id={user_id}, profile_id={profile_id}, force_new={force_new}")
+        
+        # Get profile
+        result = await db.execute(
+            select(UserLanguageProfile).where(UserLanguageProfile.id == profile_id)
+        )
+        profile = result.scalar_one_or_none()
+        if not profile:
+            logger.error(f"[LessonService.start_lesson] Profile not found: {profile_id}")
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        logger.info(f"[LessonService.start_lesson] Profile loaded: target_lang={profile.target_lang}, level={profile.cefr_level}")
+        
+        # Check for in-progress lesson (skip if force_new=True)
+        if not force_new:
+            result = await db.execute(
+                select(Lesson).where(
+                    Lesson.user_id == user_id,
+                    Lesson.status == "in_progress"
+                )
+            )
+            in_progress = result.scalar_one_or_none()
+            if in_progress:
+                logger.info(f"[LessonService.start_lesson] Resuming existing lesson: {in_progress.id}")
+                # Return existing lesson
+                exercises_result = await db.execute(
+                    select(LessonExercise).where(
+                        LessonExercise.lesson_id == in_progress.id
+                    ).order_by(LessonExercise.order_index)
+                )
+                exercises = list(exercises_result.scalars().all())
+                return {"lesson": in_progress, "exercises": exercises, "resumed": True}
+        else:
+            # Mark old in-progress lessons as abandoned
+            result = await db.execute(
+                select(Lesson).where(
+                    Lesson.user_id == user_id,
+                    Lesson.status == "in_progress"
+                )
+            )
+            old_lessons = result.scalars().all()
+            for old_lesson in old_lessons:
+                logger.info(f"[LessonService.start_lesson] Marking old lesson as abandoned: {old_lesson.id}")
+                old_lesson.status = "abandoned"
+            await db.flush()
         
         # Check daily limit
         today = date.today()
@@ -799,7 +848,7 @@ async def get_stats(user_id: str, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/lesson/start")
 async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_db)):
-    logger.info(f"[Lesson Start] profile_id={req.profile_id}")
+    logger.info(f"[Lesson Start] profile_id={req.profile_id}, force_new={req.force_new}")
     
     # Get profile to find user_id
     result = await db.execute(
@@ -811,7 +860,7 @@ async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=404, detail="Profile not found")
     
     logger.info(f"[Lesson Start] Found profile: user_id={profile.user_id}, target_lang={profile.target_lang}")
-    return await LessonService.start_lesson(db, profile.user_id, req.profile_id)
+    return await LessonService.start_lesson(db, profile.user_id, req.profile_id, req.force_new)
 
 @app.post("/api/lesson/submit")
 async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = Depends(get_db)):
@@ -926,6 +975,98 @@ async def health():
         "version": "1.0.0",
         "mode": "mock_llm" if settings.USE_MOCK_LLM else "real_llm"
     }
+
+
+# ==================== ADMIN PANEL ====================
+
+class AdminAuthRequest(BaseModel):
+    password: str
+
+def verify_admin_password(password: str):
+    if password != settings.ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password")
+    return True
+
+@app.post("/admin/auth")
+async def admin_auth(req: AdminAuthRequest):
+    """Проверка пароля администратора"""
+    verify_admin_password(req.password)
+    return {"status": "ok", "message": "Authentication successful"}
+
+@app.get("/admin/tables")
+async def get_tables(password: str, db: AsyncSession = Depends(get_db)):
+    """Получить список всех таблиц"""
+    verify_admin_password(password)
+    
+    result = await db.execute(text("""
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+        ORDER BY table_name
+    """))
+    tables = [row[0] for row in result.fetchall()]
+    return {"tables": tables}
+
+@app.get("/admin/table/{table_name}")
+async def get_table_data(table_name: str, password: str, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """Получить данные из таблицы"""
+    verify_admin_password(password)
+    
+    # Проверка на SQL injection
+    allowed_tables = [
+        "users", "user_language_profiles", "user_stats", "dictionaries",
+        "dictionary_translations", "user_words", "lessons", "lesson_exercises",
+        "llm_call_logs"
+    ]
+    
+    if table_name not in allowed_tables:
+        raise HTTPException(status_code=400, detail=f"Table '{table_name}' not allowed")
+    
+    result = await db.execute(text(f"SELECT * FROM {table_name} LIMIT :limit"), {"limit": limit})
+    rows = result.fetchall()
+    columns = result.keys()
+    
+    data = []
+    for row in rows:
+        row_dict = {}
+        for i, col in enumerate(columns):
+            value = row[i]
+            # Преобразуем datetime в строку для JSON
+            if isinstance(value, datetime):
+                value = value.isoformat()
+            row_dict[col] = value
+        data.append(row_dict)
+    
+    return {
+        "table": table_name,
+        "columns": list(columns),
+        "data": data,
+        "count": len(data)
+    }
+
+@app.get("/admin/stats")
+async def get_admin_stats(password: str, db: AsyncSession = Depends(get_db)):
+    """Получить статистику по таблицам"""
+    verify_admin_password(password)
+    
+    stats = {}
+    tables = ["users", "user_language_profiles", "user_stats", "dictionaries", 
+              "dictionary_translations", "user_words", "lessons", "lesson_exercises"]
+    
+    for table in tables:
+        result = await db.execute(text(f"SELECT COUNT(*) FROM {table}"))
+        count = result.scalar()
+        stats[table] = count
+    
+    return {"stats": stats}
+
+@app.get("/admin")
+async def admin_page():
+    """Страница админки"""
+    from fastapi.responses import FileResponse
+    import os
+    admin_path = os.path.join(os.path.dirname(__file__), "admin.html")
+    return FileResponse(admin_path)
 
 
 if __name__ == "__main__":

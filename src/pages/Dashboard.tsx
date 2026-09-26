@@ -47,7 +47,7 @@ export default function Dashboard() {
     console.log('[Dashboard] Current user:', user);
     console.log('[Dashboard] Current profile:', profile);
     setError('');
-    const session = await startLesson();
+    const session = await startLesson(true); // force_new=true для генерации новых предложений
     console.log('[Dashboard] Lesson session:', session);
     if (!session) {
       console.error('[Dashboard] Failed to start lesson');

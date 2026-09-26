@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LingoFlow Admin Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .login-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 90vh;
+        }
+        
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .login-box h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .login-box p {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #c33;
+        }
+        
+        .admin-panel {
+            display: none;
+        }
+        
+        .admin-panel.active {
+            display: block;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-card .value {
+            color: #667eea;
+            font-size: 36px;
+            font-weight: 700;
+        }
+        
+        .tables-section {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .tables-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        
+        .table-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        
+        .table-btn {
+            padding: 16px 20px;
+            background: #f5f5f5;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 15px;
+            font-weight: 500;
+            color: #333;
+            text-align: left;
+        }
+        
+        .table-btn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .table-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #764ba2;
+        }
+        
+        .data-viewer {
+            margin-top: 30px;
+        }
+        
+        .data-viewer h3 {
+            color: #333;
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .data-table th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .data-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+        }
+        
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .data-table td.null {
+            color: #999;
+            font-style: italic;
+        }
+        
+        .data-table td.json {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .logout-btn {
+            padding: 10px 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .logout-btn:hover {
+            background: #d32f2f;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="login-screen">
+            <div class="login-box">
+                <h1>🔐 Admin Panel</h1>
+                <p>LingoFlow Database Viewer</p>
+                <div id="errorBox" class="error" style="display: none;"></div>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="password">Пароль администратора</label>
+                        <input type="password" id="password" required autofocus>
+                    </div>
+                    <button type="submit" class="btn">Войти</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Admin Panel -->
+        <div id="adminPanel" class="admin-panel">
+            <div class="header">
+                <h1>📊 LingoFlow Admin Panel</h1>
+                <button class="logout-btn" onclick="logout()">Выйти</button>
+            </div>
+            
+            <div id="statsGrid" class="stats-grid"></div>
+            
+            <div class="tables-section">
+                <h2>Таблицы базы данных</h2>
+                <div id="tableList" class="table-list"></div>
+                
+                <div id="dataViewer" class="data-viewer" style="display: none;">
+                    <h3 id="currentTable"></h3>
+                    <div id="dataContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let adminPassword = '';
+        
+        // Login form
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/auth`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Неверный пароль');
+                }
+                
+                adminPassword = password;
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('adminPanel').classList.add('active');
+                loadStats();
+                loadTables();
+            } catch (error) {
+                const errorBox = document.getElementById('errorBox');
+                errorBox.textContent = error.message;
+                errorBox.style.display = 'block';
+            }
+        });
+        
+        // Load statistics
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/stats?password=${adminPassword}`);
+                const data = await response.json();
+                
+                const statsGrid = document.getElementById('statsGrid');
+                statsGrid.innerHTML = '';
+                
+                for (const [table, count] of Object.entries(data.stats)) {
+                    const card = document.createElement('div');
+                    card.className = 'stat-card';
+                    card.innerHTML = `
+                        <h3>${table}</h3>
+                        <div class="value">${count}</div>
+                    `;
+                    statsGrid.appendChild(card);
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+        
+        // Load tables list
+        async function loadTables() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/tables?password=${adminPassword}`);
+                const data = await response.json();
+                
+                const tableList = document.getElementById('tableList');
+                tableList.innerHTML = '';
+                
+                data.tables.forEach(table => {
+                    const btn = document.createElement('button');
+                    btn.className = 'table-btn';
+                    btn.textContent = table;
+                    btn.onclick = () => loadTableData(table, btn);
+                    tableList.appendChild(btn);
+                });
+            } catch (error) {
+                console.error('Error loading tables:', error);
+            }
+        }
+        
+        // Load table data
+        async function loadTableData(tableName, btn) {
+            // Update active button
+            document.querySelectorAll('.table-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const dataViewer = document.getElementById('dataViewer');
+            const currentTable = document.getElementById('currentTable');
+            const dataContent = document.getElementById('dataContent');
+            
+            dataViewer.style.display = 'block';
+            currentTable.textContent = `Таблица: ${tableName}`;
+            dataContent.innerHTML = '<div class="loading"><div class="spinner"></div>Загрузка...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/table/${tableName}?password=${adminPassword}&limit=100`);
+                const data = await response.json();
+                
+                if (data.data.length === 0) {
+                    dataContent.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Таблица пуста</p>';
+                    return;
+                }
+                
+                let html = '<div class="table-container"><table class="data-table">';
+                html += '<thead><tr>';
+                data.columns.forEach(col => {
+                    html += `<th>${col}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+                
+                data.data.forEach(row => {
+                    html += '<tr>';
+                    data.columns.forEach(col => {
+                        const value = row[col];
+                        if (value === null) {
+                            html += '<td class="null">NULL</td>';
+                        } else if (typeof value === 'object') {
+                            html += `<td class="json" title="${JSON.stringify(value)}">${JSON.stringify(value)}</td>`;
+                        } else {
+                            html += `<td>${value}</td>`;
+                        }
+                    });
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table></div>';
+                dataContent.innerHTML = html;
+            } catch (error) {
+                dataContent.innerHTML = `<p style="color: red; text-align: center; padding: 40px;">Ошибка загрузки: ${error.message}</p>`;
+            }
+        }
+        
+        // Logout
+        function logout() {
+            adminPassword = '';
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('adminPanel').classList.remove('active');
+            document.getElementById('password').value = '';
+            document.getElementById('errorBox').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
