@@ -890,6 +890,12 @@ class LessonService:
             logger.info("[LessonService] Нет due words для загрузки")
             due_dict_words = []
         
+        # Ограничиваем due_words до лимита
+        if len(due_dict_words) > profile.words_per_lesson_limit:
+            logger.info(f"[LessonService] ⚠️ Due words ({len(due_dict_words)}) больше лимита ({profile.words_per_lesson_limit}), ограничиваем")
+            due_dict_words = due_dict_words[:profile.words_per_lesson_limit]
+            logger.info(f"[LessonService] ✅ После ограничения: {len(due_dict_words)} due words")
+        
         # Fill with new words (filtered by user's CEFR level)
         logger.info("[LessonService] Этап 5: Добавление новых слов...")
         needed = max(0, profile.words_per_lesson_limit - len(due_dict_words))
