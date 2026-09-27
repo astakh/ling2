@@ -8,7 +8,7 @@
 
 ### MAX_LESSONS
 
-**Описание:** Максимальное количество уроков (максимальный stage для слова)
+**Описание:** Максимальное количество уроков в день (лимит для пользователя)
 
 **Тип:** `int`
 
@@ -20,10 +20,9 @@ MAX_LESSONS=100
 ```
 
 **Как работает:**
-- Каждое слово имеет `stage` от 0 до MAX_LESSONS
-- При правильном переводе `stage` увеличивается на 1
-- При неправильном переводе `stage` уменьшается на 1 (минимум 0)
-- Когда `stage` достигает MAX_LESSONS, слово считается полностью выученным
+- Определяет максимальное значение слайдера "Уроков в день" в профиле пользователя
+- Пользователь может выбрать значение от 1 до MAX_LESSONS
+- Администратор может изменить этот лимит в файле `.env`
 
 ### WORDS_PER_LESSON
 
@@ -81,7 +80,7 @@ REPETITION_INTERVALS=1,2,4,7,14,21,30,45,60,90
 ### Лёгкий режим (для начинающих)
 
 ```env
-MAX_LESSONS=50
+MAX_LESSONS=5
 WORDS_PER_LESSON=3
 REPETITION_INTERVALS=1,2,3,5,7,10,14,21,30,45
 ```
@@ -89,7 +88,7 @@ REPETITION_INTERVALS=1,2,3,5,7,10,14,21,30,45
 ### Стандартный режим (рекомендуется)
 
 ```env
-MAX_LESSONS=100
+MAX_LESSONS=10
 WORDS_PER_LESSON=5
 REPETITION_INTERVALS=1,2,4,7,14,21,30,45,60,90
 ```
@@ -97,7 +96,7 @@ REPETITION_INTERVALS=1,2,4,7,14,21,30,45,60,90
 ### Интенсивный режим (для продвинутых)
 
 ```env
-MAX_LESSONS=150
+MAX_LESSONS=20
 WORDS_PER_LESSON=10
 REPETITION_INTERVALS=1,1,2,3,5,7,10,14,21,30
 ```
@@ -132,6 +131,17 @@ words_per_lesson = settings.WORDS_PER_LESSON  # 5 по умолчанию
 new_words = await get_new_words(db, profile_id, target_lang, words_per_lesson, ...)
 ```
 
+### При проверке дневного лимита
+
+```python
+# Из config.py
+max_daily_lessons = settings.MAX_LESSONS  # 100 по умолчанию
+
+# Проверяем, не превышен ли лимит
+if today_lessons_count >= profile.daily_lesson_limit:
+    raise HTTPException(status_code=429, detail="Daily lesson limit reached")
+```
+
 ### При проверке перевода
 
 ```python
@@ -141,7 +151,7 @@ intervals = [int(x) for x in settings.REPETITION_INTERVALS.split(",")]
 
 # При правильном переводе
 if is_correct:
-    user_word.stage = min(user_word.stage + 1, settings.MAX_LESSONS)
+    user_word.stage = min(user_word.stage + 1, 10)  # Максимум stage = 10
     interval = intervals[min(user_word.stage, len(intervals) - 1)]
     user_word.due_lesson_number = current_lesson + interval
 
@@ -155,17 +165,17 @@ else:
 ## Рекомендации
 
 ### Для начинающих
-- **MAX_LESSONS:** 50-70
+- **MAX_LESSONS:** 3-5 (ограничение уроков в день)
 - **WORDS_PER_LESSON:** 3-5
 - **REPETITION_INTERVALS:** Более короткие интервалы (1,2,3,5,7,10,14,21,30)
 
 ### Для средних пользователей
-- **MAX_LESSONS:** 100
+- **MAX_LESSONS:** 10
 - **WORDS_PER_LESSON:** 5-7
 - **REPETITION_INTERVALS:** Стандартные (1,2,4,7,14,21,30,45,60,90)
 
 ### Для продвинутых
-- **MAX_LESSONS:** 150-200
+- **MAX_LESSONS:** 15-20
 - **WORDS_PER_LESSON:** 7-10
 - **REPETITION_INTERVALS:** Более длинные интервалы (2,4,7,14,21,30,45,60,90,120)
 
@@ -206,11 +216,11 @@ words_per_lesson_limit  INTEGER DEFAULT 5
 
 ### Ограничения
 
-- `MAX_LESSONS` должен быть >= 1
+- `MAX_LESSONS` должен быть >= 1 (лимит уроков в день для пользователя)
 - `WORDS_PER_LESSON` должен быть от 1 до 20
 - `REPETITION_INTERVALS` должен содержать минимум 1 значение
 - Все значения в `REPETITION_INTERVALS` должны быть положительными целыми числами
 
 ## Заключение
 
-Параметры повторения слов позволяют гибко настраивать систему под разные уровни подготовки и предпочтения пользователей. Рекомендуемые значения обеспечивают оптимальный баланс между эффективностью запоминания и когнитивной нагрузкой.
+Параметры повторения слов позволяют гибко настраивать систему под разные уровни подготовки и предпочтения пользователей. Параметр `MAX_LESSONS` определяет максимальное количество уроков в день, которое может установить пользователь в своём профиле. Рекомендуемые значения обеспечивают оптимальный баланс между эффективностью запоминания и когнитивной нагрузкой.

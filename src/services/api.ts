@@ -15,7 +15,6 @@ export interface Profile {
   current_lesson_number: number;
   words_per_lesson_limit: number;
   daily_lesson_limit: number;
-  max_lessons?: number;
 }
 
 export interface Stats {
@@ -158,7 +157,6 @@ export async function updateProfile(
     cefr_level?: string;
     words_per_lesson_limit?: number;
     daily_lesson_limit?: number;
-    max_lessons?: number;
   }
 ): Promise<Profile> {
   return request<Profile>(`/profile/${profileId}`, {

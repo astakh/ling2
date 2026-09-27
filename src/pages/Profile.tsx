@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Save, User, BookOpen, Target, Calendar, Award } from 'lucide-react';
+import { ArrowLeft, Save, User, BookOpen, Target, Calendar } from 'lucide-react';
 import { getProfile, saveProfile, getUser } from '../store';
 import { getProfile as getProfileFromAPI, updateProfile, getMaxLessons } from '../services/api';
 import { CEFRLevel } from '../types';
@@ -24,7 +24,6 @@ export default function Profile() {
   const [cefrLevel, setCefrLevel] = useState<CEFRLevel>('A1');
   const [wordsPerLesson, setWordsPerLesson] = useState(5);
   const [dailyLessons, setDailyLessons] = useState(3);
-  const [maxLessons, setMaxLessons] = useState(100);
   const [systemMaxLessons, setSystemMaxLessons] = useState(100);
   const [targetLang, setTargetLang] = useState('en');
 
@@ -51,7 +50,6 @@ export default function Profile() {
         setCefrLevel(freshProfile.cefr_level as CEFRLevel);
         setWordsPerLesson(freshProfile.words_per_lesson_limit);
         setDailyLessons(freshProfile.daily_lesson_limit);
-        setMaxLessons(freshProfile.max_lessons || 100);
         setTargetLang(freshProfile.target_lang);
       } catch (err) {
         console.error('Failed to load profile:', err);
@@ -59,7 +57,6 @@ export default function Profile() {
         setCefrLevel(profile.cefrLevel);
         setWordsPerLesson(profile.wordsPerLessonLimit);
         setDailyLessons(profile.dailyLessonLimit);
-        setMaxLessons(100);
         setTargetLang(profile.targetLang);
       }
     }
@@ -82,7 +79,6 @@ export default function Profile() {
         cefr_level: cefrLevel,
         words_per_lesson_limit: wordsPerLesson,
         daily_lesson_limit: dailyLessons,
-        max_lessons: maxLessons,
       });
 
       // Update local storage
@@ -91,7 +87,6 @@ export default function Profile() {
         cefrLevel: updatedProfile.cefr_level as CEFRLevel,
         wordsPerLessonLimit: updatedProfile.words_per_lesson_limit,
         dailyLessonLimit: updatedProfile.daily_lesson_limit,
-        maxLessons: updatedProfile.max_lessons,
       });
 
       setMessage({ type: 'success', text: 'Настройки сохранены!' });
@@ -260,7 +255,7 @@ export default function Profile() {
             <input
               type="range"
               min="1"
-              max="10"
+              max={systemMaxLessons}
               value={dailyLessons}
               onChange={(e) => setDailyLessons(Number(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -268,42 +263,10 @@ export default function Profile() {
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">1 урок</span>
               <span className="text-2xl font-bold text-indigo-600">{dailyLessons}</span>
-              <span className="text-sm text-gray-500">10 уроков</span>
-            </div>
-            <p className="text-sm text-gray-500 text-center">
-              Рекомендуется: 2-3 урока в день для устойчивого прогресса
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Max Lessons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <Award className="w-5 h-5 text-indigo-500" />
-            <h3 className="text-lg font-semibold text-gray-800">Максимум уроков</h3>
-          </div>
-          <div className="space-y-4">
-            <input
-              type="range"
-              min="10"
-              max={systemMaxLessons}
-              step="10"
-              value={maxLessons}
-              onChange={(e) => setMaxLessons(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-            />
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">10 уроков</span>
-              <span className="text-2xl font-bold text-indigo-600">{maxLessons}</span>
               <span className="text-sm text-gray-500">{systemMaxLessons} уроков</span>
             </div>
             <p className="text-sm text-gray-500 text-center">
-              Максимальное количество уроков для достижения полного mastery
+              Рекомендуется: 2-3 урока в день для устойчивого прогресса
             </p>
           </div>
         </motion.div>

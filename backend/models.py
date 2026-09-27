@@ -33,7 +33,6 @@ class UserLanguageProfile(Base):
     current_lesson_number = Column(Integer, default=0)
     words_per_lesson_limit = Column(Integer, default=5)
     daily_lesson_limit = Column(Integer, default=3)
-    max_lessons = Column(Integer, nullable=True)  # Максимальное количество уроков для пользователя
     created_at = Column(DateTime, server_default=func.now())
     
     user = relationship("User", back_populates="profiles")

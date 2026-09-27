@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     GIGACHAT_SCOPE: str = "GIGACHAT_API_PERS"  # GIGACHAT_API_PERS, GIGACHAT_API_B2B, GIGACHAT_API_CORP
     
     # Spaced repetition parameters
-    MAX_LESSONS: int = 100  # Максимальное количество уроков (максимальный stage)
+    MAX_LESSONS: int = 100  # Максимальное количество уроков в день (лимит для пользователя)
     WORDS_PER_LESSON: int = 5  # Количество слов в уроке (по умолчанию)
     REPETITION_INTERVALS: str = "1,2,4,7,14,21,30,45,60,90"  # Интервалы повторения в уроках
     
