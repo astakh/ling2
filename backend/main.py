@@ -1193,6 +1193,98 @@ async def mark_word_learned(req: MarkWordLearnedRequest, db: AsyncSession = Depe
     logger.info(f"[Word Mark] Word {req.dictionary_id} marked as learned")
     return {"status": "success", "dictionary_id": req.dictionary_id}
 
+
+class ReplaceWordRequest(BaseModel):
+    profile_id: str
+    removed_dictionary_id: str
+
+@app.post("/api/words/replace")
+async def replace_word(req: ReplaceWordRequest, db: AsyncSession = Depends(get_db)):
+    """Заменить удаленное слово на новое из словаря"""
+    logger.info(f"[Word Replace] Replacing word: removed_dictionary_id={req.removed_dictionary_id}, profile_id={req.profile_id}")
+    
+    # Get profile
+    result = await db.execute(
+        select(UserLanguageProfile).where(UserLanguageProfile.id == req.profile_id)
+    )
+    profile = result.scalar_one_or_none()
+    
+    if not profile:
+        logger.error(f"[Word Replace] Profile not found")
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    # Get all user words to exclude them
+    result = await db.execute(
+        select(UserWord.dictionary_id).where(
+            UserWord.user_language_profile_id == req.profile_id
+        )
+    )
+    user_word_ids = set(result.scalars().all())
+    user_word_ids.add(req.removed_dictionary_id)  # Exclude removed word
+    
+    logger.info(f"[Word Replace] User has {len(user_word_ids)} words, searching for new word...")
+    
+    # Find new word from dictionary
+    new_word = await LessonService.get_new_words(
+        db, 
+        req.profile_id, 
+        profile.target_lang, 
+        1,  # Need only 1 word
+        user_word_ids, 
+        profile.cefr_level
+    )
+    
+    if not new_word:
+        logger.warning(f"[Word Replace] No new words available in dictionary")
+        return {"status": "no_words_available", "new_word": None}
+    
+    new_word = new_word[0]
+    logger.info(f"[Word Replace] Found new word: {new_word.lemma} ({new_word.id})")
+    
+    # Add new word to user_words
+    new_user_word = UserWord(
+        id=str(uuid.uuid4()),
+        user_language_profile_id=req.profile_id,
+        dictionary_id=new_word.id,
+        stage=0,
+        due_lesson_number=profile.current_lesson_number + 1,
+        status="active",
+        correct_count=0,
+        incorrect_count=0
+    )
+    db.add(new_user_word)
+    await db.flush()
+    
+    logger.info(f"[Word Replace] New word added to user_words")
+    
+    # Get translations for the new word
+    result = await db.execute(
+        select(User).where(User.id == profile.user_id)
+    )
+    user = result.scalar_one()
+    
+    result = await db.execute(
+        select(DictionaryTranslation).where(
+            DictionaryTranslation.dictionary_id == new_word.id,
+            DictionaryTranslation.lang == user.native_lang
+        )
+    )
+    trans = result.scalar_one_or_none()
+    translations = trans.translations if trans and trans.translations else []
+    
+    logger.info(f"[Word Replace] Word replacement completed successfully")
+    
+    return {
+        "status": "success",
+        "new_word": {
+            "id": new_word.id,
+            "lemma": new_word.lemma,
+            "pos": new_word.pos,
+            "translations": translations
+        }
+    }
+
+
 @app.get("/api/stats/{user_id}")
 async def get_stats(user_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(UserStats).where(UserStats.user_id == user_id))

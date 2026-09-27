@@ -5,7 +5,7 @@ import { ArrowLeft, Check, Loader2, X, Plus, CheckCircle, Trash2 } from 'lucide-
 import { getProfile, getUser } from '../store';
 import { startLesson, submitExerciseTranslation, completeLesson } from '../services/lessonService';
 import { DictionaryWord, LessonExercise } from '../types';
-import { EvaluationResult, markWordLearned, addWord } from '../services/api';
+import { EvaluationResult, markWordLearned, addWord, replaceWord } from '../services/api';
 import Toast, { ToastType } from '../components/Toast';
 
 export default function Lesson() {
@@ -149,8 +149,21 @@ export default function Lesson() {
     if (!profile) return;
     
     try {
+      // Пометить слово как выученное
       await markWordLearned(profile.id, dictionaryId);
       setRemovedNewWords(prev => new Set([...prev, dictionaryId]));
+      
+      // Запросить замену слова
+      const replaceResult = await replaceWord(profile.id, dictionaryId);
+      
+      if (replaceResult.status === 'success' && replaceResult.new_word) {
+        // Добавить новое слово в список
+        setNewWords(prev => [...prev, replaceResult.new_word!]);
+        console.log('[Lesson] Word replaced successfully:', replaceResult.new_word.lemma);
+      } else if (replaceResult.status === 'no_words_available') {
+        console.log('[Lesson] No more words available for replacement');
+        // Можно показать уведомление пользователю
+      }
     } catch (error) {
       console.error('Failed to remove word:', error);
     }

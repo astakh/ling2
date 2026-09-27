@@ -175,6 +175,32 @@ export async function markWordLearned(profileId: string, dictionaryId: string): 
   });
 }
 
+export async function replaceWord(profileId: string, removedDictionaryId: string): Promise<{ 
+  status: string; 
+  new_word: {
+    id: string;
+    lemma: string;
+    pos: string;
+    translations: string[];
+  } | null 
+}> {
+  return request<{ 
+    status: string; 
+    new_word: {
+      id: string;
+      lemma: string;
+      pos: string;
+      translations: string[];
+    } | null 
+  }>('/words/replace', {
+    method: 'POST',
+    body: JSON.stringify({ 
+      profile_id: profileId,
+      removed_dictionary_id: removedDictionaryId 
+    }),
+  });
+}
+
 export async function getUserProfile(userId: string): Promise<Profile | null> {
   return request<Profile | null>(`/user/${userId}/profile`);
 }
