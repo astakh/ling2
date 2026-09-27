@@ -13,7 +13,7 @@ export default function Vocabulary() {
   const [userWords, setUserWords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'active' | 'learning' | 'learned'>('all');
+  const [filter, setFilter] = useState<'all' | 'learning' | 'learned'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
 
@@ -53,8 +53,7 @@ export default function Vocabulary() {
     const matchesSearch = w.dict.lemma.toLowerCase().includes(search.toLowerCase()) ||
       (w.dict.translations['ru'] || []).some((t: string) => t.toLowerCase().includes(search.toLowerCase()));
     
-    if (filter === 'active') return matchesSearch && w.status === 'active';
-    if (filter === 'learning') return matchesSearch && w.status === 'active' && w.stage < 5;
+    if (filter === 'learning') return matchesSearch && w.status === 'active';
     if (filter === 'learned') return matchesSearch && w.status === 'learned';
     return matchesSearch;
   });
@@ -109,7 +108,7 @@ export default function Vocabulary() {
 
         {/* Filters */}
         <div className="flex gap-2 mb-8 flex-wrap">
-          {(['all', 'active', 'learning', 'learned'] as const).map(f => (
+          {(['all', 'learning', 'learned'] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -119,7 +118,7 @@ export default function Vocabulary() {
                   : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}
             >
-              {f === 'all' ? 'Все' : f === 'active' ? 'Активные' : f === 'learning' ? 'Изучаю' : 'Выученные'}
+              {f === 'all' ? 'Все' : f === 'learning' ? 'Изучаю' : 'Выученные'}
             </button>
           ))}
         </div>
