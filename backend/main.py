@@ -321,30 +321,49 @@ class GigaChatService:
             for w in words_with_translations
         )
         
-        prompt = f"""Оцени перевод пользователя, фокусируясь ТОЛЬКО на этих целевых словах:
+        prompt = f"""Оцени перевод пользователя и предложи НОВЫЕ слова для изучения.
 
+## Целевые слова (уже изучаются, оцени их перевод):
 {target_words_str}
 
+## Предложение для анализа:
 Предложение (целевой язык): "{sentence}"
 Перевод пользователя ({native_lang}): "{user_translation}"
 
-Инструкции:
+## Задачи:
+
+### Задача 1: Оцени целевые слова
 1. Проверь, правильно ли переведено каждое целевое слово (сравни с переводами выше)
 2. Применяй толерантность к опечаткам: если пользователь сделал очевидную опечатку (1-2 буквы), отметь как правильное с has_typo=true
-3. Игнорируй точность перевода нецелевых слов, если общий смысл сохранён
-4. В поле word_id используй ТОЧНЫЕ ID из списка выше
-5. Предложи правильный перевод всего предложения
-6. В поле suggested_new_words верни word_id слов, которые пользователь перевёл НЕПРАВИЛЬНО (is_correct: false)
+3. В поле word_id используй ТОЧНЫЕ ID из списка выше
 
-Верни ТОЛЬКО JSON без дополнительного текста в формате:
+### Задача 2: Найди НОВЫЕ слова для изучения
+Проанализируй ВСЁ предложение и найди слова, которые:
+- Пользователь перевёл НЕПРАВИЛЬНО или пропустил в переводе
+- НЕ входят в список целевых слов выше (это важно!)
+- Являются важными для изучения (существительные, глаголы, прилагательные, наречия)
+- Не являются артиклями, предлогами или союзами (если они не несут важного смысла)
+
+Для каждого найденного нового слова укажи его lemma (начальную форму) на целевом языке.
+
+### Задача 3: Предложи правильный перевод
+Предложи правильный перевод всего предложения на {native_lang}.
+
+## Формат ответа:
+Верни ТОЛЬКО JSON без дополнительного текста:
 {{
     "word_results": [
         {{"word_id": "точное_id_из_списка", "lemma": "слово", "translation": "перевод", "is_correct": true, "has_typo": false}}
     ],
-    "suggested_new_words": ["word_id_1", "word_id_2"],
+    "suggested_new_words": [
+        {{"lemma": "walk", "pos": "verb", "translation": "ходить"}},
+        {{"lemma": "park", "pos": "noun", "translation": "парк"}}
+    ],
     "overall_correct": true,
     "correct_translation": "правильный перевод предложения на русский"
-}}"""
+}}
+
+Важно: в suggested_new_words возвращай ТОЛЬКО новые слова (не из целевых), которые пользователь перевёл неправильно."""
         
         token = await GigaChatService._get_access_token()
         
@@ -390,43 +409,62 @@ class GigaChatService:
                 for wr in result.get('word_results', []):
                     logger.info(f"[GigaChat]   - {wr.get('lemma')}: is_correct={wr.get('is_correct')}, has_typo={wr.get('has_typo')}")
                 
-                # Фильтруем suggested_new_words - проверяем, что слова есть в dictionaries и не добавлены в user_words
+                # Фильтруем suggested_new_words - ищем слова в dictionaries по lemma и проверяем, что их нет в user_words
                 if db and profile_id and "suggested_new_words" in result:
-                    suggested_ids = result["suggested_new_words"]
-                    logger.info(f"[GigaChat] Начинаю фильтрацию {len(suggested_ids)} предложенных слов...")
+                    suggested_words = result["suggested_new_words"]
+                    logger.info(f"[GigaChat] Начинаю фильтрацию {len(suggested_words)} предложенных новых слов...")
                     filtered_suggestions = []
                     
-                    for word_id in suggested_ids:
-                        logger.info(f"[GigaChat] Проверяю слово ID: {word_id}")
+                    # Получаем ID целевых слов, чтобы исключить их
+                    target_word_ids = {w["id"] for w in target_words}
+                    
+                    for suggested_word in suggested_words:
+                        lemma = suggested_word.get("lemma")
+                        pos = suggested_word.get("pos", "noun")
+                        translation = suggested_word.get("translation", "")
                         
-                        # Проверяем, есть ли слово в dictionaries
+                        logger.info(f"[GigaChat] Проверяю новое слово: '{lemma}' ({pos})")
+                        
+                        # Ищем слово в dictionaries по lemma и target_lang
                         dict_result = await db.execute(
-                            select(Dictionary).where(Dictionary.id == word_id)
+                            select(Dictionary).where(
+                                Dictionary.lemma == lemma,
+                                Dictionary.target_lang == target_words[0]["target_lang"] if target_words else "en"
+                            )
                         )
                         dict_word = dict_result.scalar_one_or_none()
                         
                         if dict_word:
-                            logger.info(f"[GigaChat] ✓ Слово '{dict_word.lemma}' найдено в dictionaries")
+                            logger.info(f"[GigaChat] ✓ Слово '{lemma}' найдено в dictionaries (ID: {dict_word.id})")
+                            
+                            # Проверяем, что это НЕ целевое слово
+                            if dict_word.id in target_word_ids:
+                                logger.info(f"[GigaChat] ✗ Слово '{lemma}' является целевым, не предлагаю")
+                                continue
                             
                             # Проверяем, есть ли это слово уже в user_words
                             user_word_result = await db.execute(
                                 select(UserWord).where(
                                     UserWord.user_language_profile_id == profile_id,
-                                    UserWord.dictionary_id == word_id
+                                    UserWord.dictionary_id == dict_word.id
                                 )
                             )
                             user_word = user_word_result.scalar_one_or_none()
                             
                             # Если слова нет в user_words, предлагаем его добавить
                             if not user_word:
-                                filtered_suggestions.append(word_id)
-                                logger.info(f"[GigaChat] ✓✓✓ Слова '{dict_word.lemma}' НЕТ в user_words, предлагаю добавить!")
+                                filtered_suggestions.append({
+                                    "dictionary_id": dict_word.id,
+                                    "lemma": lemma,
+                                    "translation": translation
+                                })
+                                logger.info(f"[GigaChat] ✓✓✓ Слова '{lemma}' НЕТ в user_words, предлагаю добавить!")
                             else:
-                                logger.info(f"[GigaChat] ✗ Слово '{dict_word.lemma}' УЖЕ есть в user_words, не предлагаю")
+                                logger.info(f"[GigaChat] ✗ Слово '{lemma}' УЖЕ есть в user_words, не предлагаю")
                         else:
-                            logger.warning(f"[GigaChat] ✗ Слово ID {word_id} НЕ найдено в dictionaries")
+                            logger.warning(f"[GigaChat] ✗ Слово '{lemma}' НЕ найдено в dictionaries")
                     
-                    logger.info(f"[GigaChat] После фильтрации: {len(filtered_suggestions)} слов для предложения")
+                    logger.info(f"[GigaChat] После фильтрации: {len(filtered_suggestions)} новых слов для предложения")
                     result["suggested_new_words"] = filtered_suggestions
                 else:
                     logger.warning(f"[GigaChat] Не могу фильтровать suggested_new_words: db={db is not None}, profile_id={profile_id}")
@@ -446,38 +484,61 @@ class GigaChatService:
                     logger.info(f"[GigaChat] Извлечён JSON из текста")
                     logger.info(f"[GigaChat] Suggested new words от LLM: {result.get('suggested_new_words', [])}")
                     
-                    # Фильтруем suggested_new_words
+                    # Фильтруем suggested_new_words - ищем слова в dictionaries по lemma
                     if db and profile_id and "suggested_new_words" in result:
-                        suggested_ids = result["suggested_new_words"]
-                        logger.info(f"[GigaChat] Начинаю фильтрацию {len(suggested_ids)} предложенных слов...")
+                        suggested_words = result["suggested_new_words"]
+                        logger.info(f"[GigaChat] Начинаю фильтрацию {len(suggested_words)} предложенных новых слов...")
                         filtered_suggestions = []
                         
-                        for word_id in suggested_ids:
-                            logger.info(f"[GigaChat] Проверяю слово ID: {word_id}")
+                        # Получаем ID целевых слов, чтобы исключить их
+                        target_word_ids = {w["id"] for w in target_words}
+                        
+                        for suggested_word in suggested_words:
+                            lemma = suggested_word.get("lemma")
+                            pos = suggested_word.get("pos", "noun")
+                            translation = suggested_word.get("translation", "")
+                            
+                            logger.info(f"[GigaChat] Проверяю новое слово: '{lemma}' ({pos})")
+                            
+                            # Ищем слово в dictionaries по lemma и target_lang
                             dict_result = await db.execute(
-                                select(Dictionary).where(Dictionary.id == word_id)
+                                select(Dictionary).where(
+                                    Dictionary.lemma == lemma,
+                                    Dictionary.target_lang == target_words[0]["target_lang"] if target_words else "en"
+                                )
                             )
                             dict_word = dict_result.scalar_one_or_none()
                             
                             if dict_word:
-                                logger.info(f"[GigaChat] ✓ Слово '{dict_word.lemma}' найдено в dictionaries")
+                                logger.info(f"[GigaChat] ✓ Слово '{lemma}' найдено в dictionaries (ID: {dict_word.id})")
+                                
+                                # Проверяем, что это НЕ целевое слово
+                                if dict_word.id in target_word_ids:
+                                    logger.info(f"[GigaChat] ✗ Слово '{lemma}' является целевым, не предлагаю")
+                                    continue
+                                
+                                # Проверяем, есть ли это слово уже в user_words
                                 user_word_result = await db.execute(
                                     select(UserWord).where(
                                         UserWord.user_language_profile_id == profile_id,
-                                        UserWord.dictionary_id == word_id
+                                        UserWord.dictionary_id == dict_word.id
                                     )
                                 )
                                 user_word = user_word_result.scalar_one_or_none()
                                 
                                 if not user_word:
-                                    filtered_suggestions.append(word_id)
-                                    logger.info(f"[GigaChat] ✓✓✓ Слова '{dict_word.lemma}' НЕТ в user_words, предлагаю добавить!")
+                                    filtered_suggestions.append({
+                                        "dictionary_id": dict_word.id,
+                                        "lemma": lemma,
+                                        "translation": translation
+                                    })
+                                    logger.info(f"[GigaChat] ✓✓✓ Слова '{lemma}' НЕТ в user_words, предлагаю добавить!")
                                 else:
-                                    logger.info(f"[GigaChat] ✗ Слово '{dict_word.lemma}' УЖЕ есть в user_words, не предлагаю")
+                                    logger.info(f"[GigaChat] ✗ Слово '{lemma}' УЖЕ есть в user_words, не предлагаю")
                             else:
-                                logger.warning(f"[GigaChat] ✗ Слово ID {word_id} НЕ найдено в dictionaries")
+                                logger.warning(f"[GigaChat] ✗ Слово '{lemma}' НЕ найдено в dictionaries")
                         
-                        logger.info(f"[GigaChat] После фильтрации: {len(filtered_suggestions)} слов для предложения")
+                        logger.info(f"[GigaChat] После фильтрации: {len(filtered_suggestions)} новых слов для предложения")
                         result["suggested_new_words"] = filtered_suggestions
                     
                     return result

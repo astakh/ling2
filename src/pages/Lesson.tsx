@@ -382,21 +382,22 @@ export default function Lesson() {
                       💡 Хотите добавить эти слова в словарь?
                     </div>
                     <div className="space-y-2">
-                      {currentResult.suggested_new_words.map((wordId, index) => {
-                        const isAdded = addedWords.has(wordId);
+                      {currentResult.suggested_new_words.map((word, index) => {
+                        const isAdded = addedWords.has(word.dictionary_id);
                         return (
                           <motion.div
-                            key={wordId}
+                            key={word.dictionary_id}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.1 }}
                             className="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-100"
                           >
                             <div className="flex-1">
-                              <span className="font-medium text-gray-800">{wordId}</span>
+                              <span className="font-medium text-gray-800">{word.lemma}</span>
+                              <span className="text-gray-500 text-sm ml-2">→ {word.translation}</span>
                             </div>
                             <button
-                              onClick={() => handleAddWord(wordId)}
+                              onClick={() => handleAddWord(word.dictionary_id)}
                               disabled={isAdded}
                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
                                 isAdded

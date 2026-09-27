@@ -69,9 +69,15 @@ export interface WordResult {
   has_typo: boolean;
 }
 
+export interface SuggestedWord {
+  dictionary_id: string;
+  lemma: string;
+  translation: string;
+}
+
 export interface EvaluationResult {
   word_results: WordResult[];
-  suggested_new_words: string[];
+  suggested_new_words: SuggestedWord[];
   overall_correct: boolean;
   correct_translation?: string;
 }
