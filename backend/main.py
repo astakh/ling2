@@ -1594,11 +1594,67 @@ async def add_word(req: AddWordRequest, db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/words/{profile_id}")
 async def get_user_words(profile_id: str, db: AsyncSession = Depends(get_db)):
+    logger.info(f"[UserWords] Fetching words for profile: {profile_id}")
+    
+    # Get user words
     result = await db.execute(
         select(UserWord).where(UserWord.user_language_profile_id == profile_id)
     )
-    words = result.scalars().all()
-    return words
+    user_words = result.scalars().all()
+    logger.info(f"[UserWords] Found {len(user_words)} user words")
+    
+    # Get profile to find native language
+    result = await db.execute(
+        select(UserLanguageProfile).where(UserLanguageProfile.id == profile_id)
+    )
+    profile = result.scalar_one_or_none()
+    
+    if not profile:
+        logger.error(f"[UserWords] Profile not found: {profile_id}")
+        return []
+    
+    # Get dictionary entries for all user words
+    dict_ids = [uw.dictionary_id for uw in user_words]
+    if not dict_ids:
+        return []
+    
+    result = await db.execute(
+        select(Dictionary).where(Dictionary.id.in_(dict_ids))
+    )
+    dict_words = {w.id: w for w in result.scalars().all()}
+    logger.info(f"[UserWords] Found {len(dict_words)} dictionary words")
+    
+    # Get translations for all words
+    result = await db.execute(
+        select(DictionaryTranslation).where(
+            DictionaryTranslation.dictionary_id.in_(dict_ids),
+            DictionaryTranslation.lang == profile.target_lang
+        )
+    )
+    translations_map = {t.dictionary_id: t.translations for t in result.scalars().all()}
+    logger.info(f"[UserWords] Found translations for {len(translations_map)} words")
+    
+    # Combine user_words with dictionary info and translations
+    combined_words = []
+    for uw in user_words:
+        dict_word = dict_words.get(uw.dictionary_id)
+        if dict_word:
+            combined_words.append({
+                "id": uw.id,
+                "dictionary_id": uw.dictionary_id,
+                "stage": uw.stage,
+                "due_lesson_number": uw.due_lesson_number,
+                "status": uw.status,
+                "correct_count": uw.correct_count,
+                "incorrect_count": uw.incorrect_count,
+                "lemma": dict_word.lemma,
+                "pos": dict_word.pos,
+                "cefr_level": dict_word.cefr_level,
+                "translations": translations_map.get(uw.dictionary_id, [])
+            })
+    
+    logger.info(f"[UserWords] Returning {len(combined_words)} combined words")
+    return combined_words
 
 @app.get("/api/dictionary/{target_lang}")
 async def get_dictionary(target_lang: str, db: AsyncSession = Depends(get_db)):

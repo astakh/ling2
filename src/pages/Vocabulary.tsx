@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Search, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getProfile } from '../store';
 import { fetchUserWords } from '../services/lessonService';
-import { getDictionary } from '../data/dictionaries';
 import { markWordLearned } from '../services/api';
 
 export default function Vocabulary() {
@@ -42,16 +41,17 @@ export default function Vocabulary() {
     }
   };
 
-  const dictionary = getDictionary(profile?.targetLang || 'en');
+  // Используем данные из API (уже содержат lemma, translations и т.д.)
+  const wordsWithInfo = userWords.map((uw: any) => ({
+    ...uw,
+    lemma: uw.lemma,
+    pos: uw.pos,
+    translations: uw.translations || []
+  }));
 
-  const wordsWithDict = userWords.map((uw: any) => {
-    const dict = dictionary.find(d => d.id === uw.dictionary_id);
-    return { ...uw, dict };
-  }).filter((w: any) => w.dict);
-
-  const filtered = wordsWithDict.filter((w: any) => {
-    const matchesSearch = w.dict.lemma.toLowerCase().includes(search.toLowerCase()) ||
-      (w.dict.translations['ru'] || []).some((t: string) => t.toLowerCase().includes(search.toLowerCase()));
+  const filtered = wordsWithInfo.filter((w: any) => {
+    const matchesSearch = w.lemma.toLowerCase().includes(search.toLowerCase()) ||
+      (w.translations || []).some((t: string) => t.toLowerCase().includes(search.toLowerCase()));
     
     if (filter === 'learning') return matchesSearch && w.status === 'active';
     if (filter === 'learned') return matchesSearch && w.status === 'learned';
@@ -142,10 +142,10 @@ export default function Vocabulary() {
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className={`font-semibold text-gray-900 text-lg ${w.status === 'learned' ? 'line-through' : ''}`}>
-                      {w.dict.lemma}
+                      {w.lemma}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {(w.dict.translations['ru'] || []).join(', ')}
+                      {(w.translations || []).join(', ')}
                     </div>
                     {w.status === 'learned' && (
                       <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
