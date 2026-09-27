@@ -555,7 +555,7 @@ class LessonService:
     
     @staticmethod
     async def get_new_words(db: AsyncSession, profile_id: str, target_lang: str, 
-                            limit: int, exclude_ids: set) -> list:
+                            limit: int, exclude_ids: set, cefr_level: str = "A1") -> list:
         # Get already learned word IDs
         result = await db.execute(
             select(UserWord.dictionary_id).where(
@@ -564,12 +564,36 @@ class LessonService:
         )
         learned_ids = set(result.scalars().all()) | exclude_ids
         
-        # Get available words
-        query = select(Dictionary).where(Dictionary.target_lang == target_lang)
+        # Define CEFR level hierarchy
+        level_hierarchy = {
+            "A1": ["A1"],
+            "A2": ["A1", "A2"],
+            "B1": ["A1", "A2", "B1"],
+            "B2": ["A1", "A2", "B1", "B2"]
+        }
+        
+        # Get allowed levels for user's CEFR level
+        allowed_levels = level_hierarchy.get(cefr_level, ["A1"])
+        
+        logger.info(f"[LessonService.get_new_words] User level: {cefr_level}, allowed levels: {allowed_levels}")
+        
+        # Get available words filtered by CEFR level
+        query = select(Dictionary).where(
+            Dictionary.target_lang == target_lang,
+            Dictionary.cefr_level.in_(allowed_levels)
+        )
         if learned_ids:
             query = query.where(~Dictionary.id.in_(learned_ids))
+        
+        # Order by CEFR level (higher levels first for more challenge)
+        query = query.order_by(Dictionary.cefr_level.desc())
+        
         result = await db.execute(query.limit(limit))
-        return list(result.scalars().all())
+        words = list(result.scalars().all())
+        
+        logger.info(f"[LessonService.get_new_words] Found {len(words)} words for levels {allowed_levels}")
+        
+        return words
     
     @staticmethod
     def cluster_words(words: list, target_count: int = 5) -> list:
@@ -706,10 +730,10 @@ class LessonService:
         else:
             due_dict_words = []
         
-        # Fill with new words
+        # Fill with new words (filtered by user's CEFR level)
         needed = max(0, profile.words_per_lesson_limit - len(due_dict_words))
         new_words = await LessonService.get_new_words(
-            db, profile_id, profile.target_lang, needed, due_dict_ids
+            db, profile_id, profile.target_lang, needed, due_dict_ids, profile.cefr_level
         )
         
         today_words = due_dict_words + new_words
