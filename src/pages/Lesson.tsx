@@ -6,6 +6,7 @@ import { getProfile, getUser } from '../store';
 import { startLesson, submitExerciseTranslation, completeLesson } from '../services/lessonService';
 import { DictionaryWord, LessonExercise } from '../types';
 import { EvaluationResult, markWordLearned, addWord } from '../services/api';
+import Toast, { ToastType } from '../components/Toast';
 
 export default function Lesson() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function Lesson() {
   const [showNewWords, setShowNewWords] = useState(false);
   const [newWords, setNewWords] = useState<Array<{id: string, lemma: string, pos: string, translations: string[]}>>([]);
   const [removedNewWords, setRemovedNewWords] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   useEffect(() => {
     const lessonData = sessionStorage.getItem('currentLesson');
@@ -44,6 +46,17 @@ export default function Lesson() {
     setExerciseIndex(session.currentExerciseIndex);
     setTodayWords(session.todayWords);
     
+    // Проверяем, исчерпан ли словарь
+    if (session.dictionary_exhausted) {
+      console.warn('[Lesson] Dictionary exhausted - no new words available');
+      // Показываем toast уведомление
+      setToast({ 
+        message: 'Все слова для вашего уровня уже добавлены в изучение. Урок будет состоять только из повторения.', 
+        type: 'info' 
+      });
+    }
+    
+    // Show new words if this is a new lesson (not resumed) AND there are new words
     if (session.newWords && session.newWords.length > 0 && !session.resumed) {
       setNewWords(session.newWords);
       setShowNewWords(true);
@@ -146,6 +159,15 @@ export default function Lesson() {
   if (showNewWords) {
     return (
       <div className="min-h-screen">
+        <AnimatePresence>
+          {toast && (
+            <Toast
+              message={toast.message}
+              type={toast.type}
+              onClose={() => setToast(null)}
+            />
+          )}
+        </AnimatePresence>
         <div className="max-w-2xl mx-auto px-6 py-12">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -237,6 +259,15 @@ export default function Lesson() {
 
   return (
     <div className="min-h-screen">
+      <AnimatePresence>
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+      </AnimatePresence>
       <div className="max-w-2xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

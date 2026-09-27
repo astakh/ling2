@@ -47,6 +47,7 @@ export interface LessonSession {
     translations: string[];
   }>;
   resumed?: boolean;
+  dictionary_exhausted?: boolean;
 }
 
 // Start a new lesson via API

@@ -901,12 +901,20 @@ class LessonService:
         needed = max(0, profile.words_per_lesson_limit - len(due_dict_words))
         logger.info(f"[LessonService] Нужно добавить {needed} новых слов (лимит: {profile.words_per_lesson_limit}, due words: {len(due_dict_words)})")
         
+        dictionary_exhausted = False
+        
         if needed > 0:
             logger.info(f"[LessonService] Ищем новые слова для языка '{profile.target_lang}', уровень '{profile.cefr_level}'...")
             new_words = await LessonService.get_new_words(
                 db, profile_id, profile.target_lang, needed, due_dict_ids, profile.cefr_level
             )
             logger.info(f"[LessonService] ✅ Найдено {len(new_words)} новых слов")
+            
+            if len(new_words) < needed:
+                dictionary_exhausted = True
+                logger.warning(f"[LessonService] ⚠️ Словарь исчерпан! Запрошено {needed}, найдено только {len(new_words)}")
+                logger.warning(f"[LessonService] ⚠️ Все слова для языка '{profile.target_lang}' и уровня '{profile.cefr_level}' уже изучаются")
+            
             if new_words:
                 logger.info("[LessonService] Список новых слов:")
                 for i, word in enumerate(new_words, 1):
@@ -1019,9 +1027,19 @@ class LessonService:
         logger.info(f"[LessonService] New words: {len(new_words)}")
         logger.info(f"[LessonService] Добавлено в user_words: {added_count}")
         logger.info(f"[LessonService] resumed: False")
+        logger.info(f"[LessonService] dictionary_exhausted: {dictionary_exhausted}")
         logger.info("[LessonService] === КОНЕЦ LessonService.start_lesson ===")
         
-        return {"lesson": lesson, "exercises": exercises, "resumed": False}
+        # Возвращаем ID новых слов для представления пользователю
+        new_word_ids = [w.id for w in new_words]
+        
+        return {
+            "lesson": lesson, 
+            "exercises": exercises, 
+            "resumed": False,
+            "new_word_ids": new_word_ids,  # Только ID новых слов
+            "dictionary_exhausted": dictionary_exhausted  # Флаг: словарь исчерпан
+        }
 
 
 # ==================== ROUTES ====================
@@ -1205,6 +1223,10 @@ async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_d
     lesson_data = await LessonService.start_lesson(db, profile.user_id, req.profile_id, req.force_new)
     logger.info(f"[Lesson Start] ✅ LessonService вернул: resumed={lesson_data.get('resumed')}, lesson_id={lesson_data.get('lesson').id if lesson_data.get('lesson') else 'None'}")
     
+    # Get new_word_ids from LessonService (только ID новых слов, не due words)
+    new_word_ids = lesson_data.get("new_word_ids", []) if lesson_data else []
+    logger.info(f"[Lesson Start] New word IDs from LessonService: {len(new_word_ids)}")
+    
     # Get user to find native_lang
     logger.info("[Lesson Start] Этап 3: Получение информации о пользователе для определения родного языка...")
     result = await db.execute(
@@ -1213,72 +1235,75 @@ async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_d
     user = result.scalar_one_or_none()
     logger.info(f"[Lesson Start] ✅ Пользователь найден: native_lang={user.native_lang}")
     
-    # Get new words for this lesson
+    # Get new words for this lesson (ТОЛЬКО новые слова, не due words)
     logger.info("[Lesson Start] Этап 4: Сбор новых слов для представления пользователю...")
     new_words = []
     
-    if lesson_data and not lesson_data.get("resumed"):
-        logger.info("[Lesson Start] ✅ Это НОВЫЙ урок (не возобновление), собираем слова...")
+    if lesson_data and not lesson_data.get("resumed") and new_word_ids:
+        logger.info(f"[Lesson Start] ✅ Это НОВЫЙ урок, собираем {len(new_word_ids)} новых слов...")
         
-        # Get all word IDs from exercises
-        all_word_ids = set()
-        for exercise in lesson_data.get("exercises", []):
-            all_word_ids.update(exercise.target_word_ids)
+        # Get dictionary entries for NEW words only
+        logger.info("[Lesson Start] Загрузка словарных записей для новых слов...")
+        result = await db.execute(
+            select(Dictionary).where(Dictionary.id.in_(new_word_ids))
+        )
+        words = result.scalars().all()
+        logger.info(f"[Lesson Start] ✅ Загружено {len(words)} словарных записей для новых слов")
         
-        logger.info(f"[Lesson Start] Найдено {len(all_word_ids)} уникальных ID слов в упражнениях")
-        logger.debug(f"[Lesson Start] Word IDs: {list(all_word_ids)}")
-        
-        # Get dictionary entries for these words
-        if all_word_ids:
-            logger.info("[Lesson Start] Загрузка словарных записей для этих слов...")
+        # Get translations for these words (in user's native language)
+        logger.info(f"[Lesson Start] Получение переводов на родной язык пользователя ({user.native_lang})...")
+        for word in words:
             result = await db.execute(
-                select(Dictionary).where(Dictionary.id.in_(list(all_word_ids)))
-            )
-            words = result.scalars().all()
-            logger.info(f"[Lesson Start] ✅ Загружено {len(words)} словарных записей")
-            
-            # Get translations for these words (in user's native language)
-            logger.info(f"[Lesson Start] Получение переводов на родной язык пользователя ({user.native_lang})...")
-            for word in words:
-                result = await db.execute(
-                    select(DictionaryTranslation).where(
-                        DictionaryTranslation.dictionary_id == word.id,
-                        DictionaryTranslation.lang == user.native_lang
-                    )
+                select(DictionaryTranslation).where(
+                    DictionaryTranslation.dictionary_id == word.id,
+                    DictionaryTranslation.lang == user.native_lang
                 )
-                trans = result.scalar_one_or_none()
-                translations = trans.translations if trans and trans.translations else []
-                
-                if not translations:
-                    logger.warning(f"[Lesson Start] ⚠️ Нет переводов для слова '{word.lemma}' на язык '{user.native_lang}'")
-                else:
-                    logger.debug(f"[Lesson Start] ✅ Переводы для '{word.lemma}': {translations}")
-                
-                new_words.append({
-                    "id": word.id,
-                    "lemma": word.lemma,
-                    "pos": word.pos,
-                    "translations": translations
-                })
+            )
+            trans = result.scalar_one_or_none()
+            translations = trans.translations if trans and trans.translations else []
             
-            logger.info(f"[Lesson Start] ✅ Собрано {len(new_words)} слов с переводами")
-        else:
-            logger.warning("[Lesson Start] ⚠️ Нет ID слов в упражнениях")
+            if not translations:
+                logger.warning(f"[Lesson Start] ⚠️ Нет переводов для слова '{word.lemma}' на язык '{user.native_lang}'")
+            else:
+                logger.debug(f"[Lesson Start] ✅ Переводы для '{word.lemma}': {translations}")
+            
+            new_words.append({
+                "id": word.id,
+                "lemma": word.lemma,
+                "pos": word.pos,
+                "translations": translations
+            })
+        
+        logger.info(f"[Lesson Start] ✅ Собрано {len(new_words)} новых слов с переводами")
     else:
         if lesson_data and lesson_data.get("resumed"):
             logger.info("[Lesson Start] ⏭️ Это ВОЗОБНОВЛЕНИЕ урока - новые слова не собираются")
+        elif not new_word_ids:
+            logger.info("[Lesson Start] ℹ️ Нет новых слов для добавления (все слова уже изучаются или словарь исчерпан)")
         else:
             logger.warning("[Lesson Start] ⚠️ lesson_data пустой или None")
     
     lesson_data["new_words"] = new_words
+    
+    # Передаём флаг dictionary_exhausted в frontend
+    dictionary_exhausted = lesson_data.get("dictionary_exhausted", False)
+    lesson_data["dictionary_exhausted"] = dictionary_exhausted
+    
     logger.info(f"[Lesson Start] === ИТОГ ===")
     logger.info(f"[Lesson Start] Новых слов для представления: {len(new_words)}")
+    logger.info(f"[Lesson Start] Словарь исчерпан: {dictionary_exhausted}")
+    
     if new_words:
         logger.info(f"[Lesson Start] Список новых слов:")
         for i, word in enumerate(new_words, 1):
             logger.info(f"[Lesson Start]   {i}. {word['lemma']} ({word['pos']}) → {', '.join(word['translations'])}")
     else:
-        logger.warning("[Lesson Start] ❌ НЕТ НОВЫХ СЛОВ ДЛЯ ПРЕДСТАВЛЕНИЯ!")
+        logger.info(f"[Lesson Start] ℹ️ Экран 'Новые слова' не будет показан")
+    
+    if dictionary_exhausted:
+        logger.warning(f"[Lesson Start] ⚠️ Словарь исчерпан для языка '{profile.target_lang}' и уровня '{profile.cefr_level}'")
+        logger.warning(f"[Lesson Start] ⚠️ Пользователю будет показано сообщение об этом")
+    
     logger.info("=" * 80)
     
     return lesson_data
