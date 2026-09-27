@@ -626,6 +626,11 @@ class AuthService:
 class LessonService:
     @staticmethod
     async def get_due_words(db: AsyncSession, profile_id: str, current_lesson: int) -> list:
+        logger.info(f"[LessonService.get_due_words] Поиск слов для повторения...")
+        logger.info(f"[LessonService.get_due_words] Параметры:")
+        logger.info(f"[LessonService.get_due_words]   - profile_id: {profile_id}")
+        logger.info(f"[LessonService.get_due_words]   - current_lesson: {current_lesson}")
+        
         result = await db.execute(
             select(UserWord).where(
                 UserWord.user_language_profile_id == profile_id,
@@ -633,18 +638,42 @@ class LessonService:
                 UserWord.due_lesson_number <= current_lesson,
             )
         )
-        return list(result.scalars().all())
+        due_words = list(result.scalars().all())
+        
+        logger.info(f"[LessonService.get_due_words] ✅ Найдено {len(due_words)} слов для повторения")
+        if due_words:
+            logger.info("[LessonService.get_due_words] Список due words:")
+            for i, word in enumerate(due_words[:10], 1):  # Показываем первые 10
+                logger.info(f"[LessonService.get_due_words]   {i}. dictionary_id={word.dictionary_id}, stage={word.stage}, due_lesson={word.due_lesson_number}")
+            if len(due_words) > 10:
+                logger.info(f"[LessonService.get_due_words]   ... и ещё {len(due_words) - 10} слов")
+        
+        return due_words
     
     @staticmethod
     async def get_new_words(db: AsyncSession, profile_id: str, target_lang: str, 
                             limit: int, exclude_ids: set, cefr_level: str = "A1") -> list:
+        logger.info(f"[LessonService.get_new_words] === Начало поиска новых слов ===")
+        logger.info(f"[LessonService.get_new_words] Параметры:")
+        logger.info(f"[LessonService.get_new_words]   - profile_id: {profile_id}")
+        logger.info(f"[LessonService.get_new_words]   - target_lang: {target_lang}")
+        logger.info(f"[LessonService.get_new_words]   - limit: {limit}")
+        logger.info(f"[LessonService.get_new_words]   - exclude_ids: {len(exclude_ids)} слов")
+        logger.info(f"[LessonService.get_new_words]   - cefr_level: {cefr_level}")
+        
+        if limit == 0:
+            logger.info("[LessonService.get_new_words] ⏭️ limit=0, не нужно искать новые слова")
+            return []
+        
         # Get already learned word IDs
+        logger.info("[LessonService.get_new_words] Получаем список уже изученных слов...")
         result = await db.execute(
             select(UserWord.dictionary_id).where(
                 UserWord.user_language_profile_id == profile_id
             )
         )
         learned_ids = set(result.scalars().all()) | exclude_ids
+        logger.info(f"[LessonService.get_new_words] ✅ Найдено {len(learned_ids)} уже изученных слов (включая exclude_ids)")
         
         # Define CEFR level hierarchy
         level_hierarchy = {
@@ -657,9 +686,16 @@ class LessonService:
         # Get allowed levels for user's CEFR level
         allowed_levels = level_hierarchy.get(cefr_level, ["A1"])
         
-        logger.info(f"[LessonService.get_new_words] User level: {cefr_level}, allowed levels: {allowed_levels}")
+        logger.info(f"[LessonService.get_new_words] Уровень пользователя: {cefr_level}")
+        logger.info(f"[LessonService.get_new_words] Разрешённые уровни слов: {allowed_levels}")
         
         # Get available words filtered by CEFR level
+        logger.info(f"[LessonService.get_new_words] Ищем слова в словаре...")
+        logger.info(f"[LessonService.get_new_words]   - Язык: {target_lang}")
+        logger.info(f"[LessonService.get_new_words]   - Уровни: {allowed_levels}")
+        logger.info(f"[LessonService.get_new_words]   - Исключаем: {len(learned_ids)} слов")
+        logger.info(f"[LessonService.get_new_words]   - Лимит: {limit}")
+        
         query = select(Dictionary).where(
             Dictionary.target_lang == target_lang,
             Dictionary.cefr_level.in_(allowed_levels)
@@ -673,7 +709,20 @@ class LessonService:
         result = await db.execute(query.limit(limit))
         words = list(result.scalars().all())
         
-        logger.info(f"[LessonService.get_new_words] Found {len(words)} words for levels {allowed_levels}")
+        logger.info(f"[LessonService.get_new_words] ✅ Найдено {len(words)} новых слов")
+        
+        if words:
+            logger.info("[LessonService.get_new_words] Список найденных слов:")
+            for i, word in enumerate(words, 1):
+                logger.info(f"[LessonService.get_new_words]   {i}. {word.lemma} ({word.pos}) - уровень {word.cefr_level}")
+        else:
+            logger.warning("[LessonService.get_new_words] ⚠️ НЕТ НОВЫХ СЛОВ!")
+            logger.warning("[LessonService.get_new_words] Возможные причины:")
+            logger.warning("[LessonService.get_new_words]   1. Все слова уже изучены")
+            logger.warning("[LessonService.get_new_words]   2. Нет слов для указанного языка и уровня")
+            logger.warning("[LessonService.get_new_words]   3. Лимит = 0")
+        
+        logger.info(f"[LessonService.get_new_words] === Конец поиска новых слов ===")
         
         return words
     
@@ -736,21 +785,30 @@ class LessonService:
     
     @staticmethod
     async def start_lesson(db: AsyncSession, user_id: str, profile_id: str, force_new: bool = False) -> dict:
-        logger.info(f"[LessonService.start_lesson] user_id={user_id}, profile_id={profile_id}, force_new={force_new}")
+        logger.info("[LessonService] === НАЧАЛО LessonService.start_lesson ===")
+        logger.info(f"[LessonService] Параметры: user_id={user_id}, profile_id={profile_id}, force_new={force_new}")
         
         # Get profile
+        logger.info("[LessonService] Этап 1: Загрузка профиля...")
         result = await db.execute(
             select(UserLanguageProfile).where(UserLanguageProfile.id == profile_id)
         )
         profile = result.scalar_one_or_none()
         if not profile:
-            logger.error(f"[LessonService.start_lesson] Profile not found: {profile_id}")
+            logger.error(f"[LessonService] ❌ Profile not found: {profile_id}")
             raise HTTPException(status_code=404, detail="Profile not found")
         
-        logger.info(f"[LessonService.start_lesson] Profile loaded: target_lang={profile.target_lang}, level={profile.cefr_level}")
+        logger.info(f"[LessonService] ✅ Профиль загружен:")
+        logger.info(f"[LessonService]   - target_lang: {profile.target_lang}")
+        logger.info(f"[LessonService]   - cefr_level: {profile.cefr_level}")
+        logger.info(f"[LessonService]   - current_lesson_number: {profile.current_lesson_number}")
+        logger.info(f"[LessonService]   - words_per_lesson_limit: {profile.words_per_lesson_limit}")
+        logger.info(f"[LessonService]   - daily_lesson_limit: {profile.daily_lesson_limit}")
         
         # Check for in-progress lesson (skip if force_new=True)
+        logger.info("[LessonService] Этап 2: Проверка существующих уроков...")
         if not force_new:
+            logger.info("[LessonService] Ищем урок в статусе 'in_progress'...")
             result = await db.execute(
                 select(Lesson).where(
                     Lesson.user_id == user_id,
@@ -759,7 +817,8 @@ class LessonService:
             )
             in_progress = result.scalar_one_or_none()
             if in_progress:
-                logger.info(f"[LessonService.start_lesson] Resuming existing lesson: {in_progress.id}")
+                logger.info(f"[LessonService] ✅ Найден существующий урок: {in_progress.id}")
+                logger.info(f"[LessonService] ⏭️ ВОЗВРАЩАЕМ СУЩЕСТВУЮЩИЙ УРОК (resumed=True)")
                 # Return existing lesson
                 exercises_result = await db.execute(
                     select(LessonExercise).where(
@@ -767,8 +826,12 @@ class LessonService:
                     ).order_by(LessonExercise.order_index)
                 )
                 exercises = list(exercises_result.scalars().all())
+                logger.info(f"[LessonService] Загружено {len(exercises)} упражнений")
                 return {"lesson": in_progress, "exercises": exercises, "resumed": True}
+            else:
+                logger.info("[LessonService] Существующих уроков не найдено")
         else:
+            logger.info("[LessonService] force_new=True - пропускаем проверку существующих уроков")
             # Mark old in-progress lessons as abandoned
             result = await db.execute(
                 select(Lesson).where(
@@ -777,12 +840,17 @@ class LessonService:
                 )
             )
             old_lessons = result.scalars().all()
-            for old_lesson in old_lessons:
-                logger.info(f"[LessonService.start_lesson] Marking old lesson as abandoned: {old_lesson.id}")
-                old_lesson.status = "abandoned"
-            await db.flush()
+            if old_lessons:
+                logger.info(f"[LessonService] Найдено {len(old_lessons)} старых уроков в статусе 'in_progress'")
+                for old_lesson in old_lessons:
+                    logger.info(f"[LessonService] Помечаем урок {old_lesson.id} как 'abandoned'")
+                    old_lesson.status = "abandoned"
+                await db.flush()
+            else:
+                logger.info("[LessonService] Старых уроков не найдено")
         
         # Check daily limit
+        logger.info("[LessonService] Этап 3: Проверка дневного лимита...")
         today = date.today()
         result = await db.execute(
             select(func.count(Lesson.id)).where(
@@ -792,47 +860,80 @@ class LessonService:
             )
         )
         today_count = result.scalar()
+        logger.info(f"[LessonService] Выполнено уроков сегодня: {today_count}/{profile.daily_lesson_limit}")
         if today_count >= profile.daily_lesson_limit:
-            logger.info(f"[LessonService.start_lesson] Daily limit reached: {today_count}/{profile.daily_lesson_limit}")
+            logger.error(f"[LessonService] ❌ Дневной лимит достигнут!")
             raise HTTPException(
                 status_code=429, 
                 detail=f"Дневной лимит уроков достигнут: {today_count} из {profile.daily_lesson_limit}. Продолжим завтра!"
             )
+        logger.info("[LessonService] ✅ Дневной лимит не превышен")
         
         # Get words for lesson
+        logger.info("[LessonService] Этап 4: Получение слов для урока...")
+        logger.info(f"[LessonService] Ищем слова для повторения (due words) на уровне {profile.current_lesson_number}...")
         due_words = await LessonService.get_due_words(db, profile_id, profile.current_lesson_number)
         due_dict_ids = {uw.dictionary_id for uw in due_words}
+        logger.info(f"[LessonService] ✅ Найдено {len(due_words)} слов для повторения")
+        if due_words:
+            logger.debug(f"[LessonService] Due word IDs: {list(due_dict_ids)}")
         
         # Get dictionary entries for due words
         if due_dict_ids:
+            logger.info("[LessonService] Загружаем словарные записи для due words...")
             result = await db.execute(
                 select(Dictionary).where(Dictionary.id.in_(due_dict_ids))
             )
             due_dict_words = list(result.scalars().all())
+            logger.info(f"[LessonService] ✅ Загружено {len(due_dict_words)} словарных записей для due words")
         else:
+            logger.info("[LessonService] Нет due words для загрузки")
             due_dict_words = []
         
         # Fill with new words (filtered by user's CEFR level)
+        logger.info("[LessonService] Этап 5: Добавление новых слов...")
         needed = max(0, profile.words_per_lesson_limit - len(due_dict_words))
-        new_words = await LessonService.get_new_words(
-            db, profile_id, profile.target_lang, needed, due_dict_ids, profile.cefr_level
-        )
+        logger.info(f"[LessonService] Нужно добавить {needed} новых слов (лимит: {profile.words_per_lesson_limit}, due words: {len(due_dict_words)})")
+        
+        if needed > 0:
+            logger.info(f"[LessonService] Ищем новые слова для языка '{profile.target_lang}', уровень '{profile.cefr_level}'...")
+            new_words = await LessonService.get_new_words(
+                db, profile_id, profile.target_lang, needed, due_dict_ids, profile.cefr_level
+            )
+            logger.info(f"[LessonService] ✅ Найдено {len(new_words)} новых слов")
+            if new_words:
+                logger.info("[LessonService] Список новых слов:")
+                for i, word in enumerate(new_words, 1):
+                    logger.info(f"[LessonService]   {i}. {word.lemma} ({word.pos}) - уровень {word.cefr_level}")
+        else:
+            logger.info("[LessonService] ⏭️ Не нужно добавлять новых слов")
+            new_words = []
         
         today_words = due_dict_words + new_words
+        logger.info(f"[LessonService] Итого слов в уроке: {len(today_words)} (due: {len(due_dict_words)}, new: {len(new_words)})")
+        
         if not today_words:
+            logger.error("[LessonService] ❌ Нет доступных слов для урока!")
             raise HTTPException(status_code=400, detail="No words available")
         
         # Cluster words
+        logger.info("[LessonService] Этап 6: Группировка слов...")
         word_groups = LessonService.cluster_words(today_words)
+        logger.info(f"[LessonService] ✅ Создано {len(word_groups)} групп слов")
+        for i, group in enumerate(word_groups, 1):
+            logger.info(f"[LessonService]   Группа {i}: {[w.lemma for w in group]}")
         
-        logger.info(f"[LessonService] Starting sentence generation for {len(word_groups)} word groups")
+        logger.info("[LessonService] Этап 7: Генерация предложений через LLM...")
         
         # Generate sentences via LLM
         sentences = await LLMService.generate_sentences(word_groups, profile.target_lang)
         
-        logger.info(f"[LessonService] Generated {len(sentences)} sentences: {sentences}")
+        logger.info(f"[LessonService] ✅ Сгенерировано {len(sentences)} предложений:")
+        for i, sentence in enumerate(sentences, 1):
+            logger.info(f"[LessonService]   {i}. {sentence}")
         
         # Create lesson
+        logger.info("[LessonService] Этап 8: Создание урока в базе данных...")
         lesson_number = profile.current_lesson_number + 1
         lesson = Lesson(
             id=str(uuid.uuid4()),
@@ -844,8 +945,10 @@ class LessonService:
         )
         db.add(lesson)
         await db.flush()
+        logger.info(f"[LessonService] ✅ Урок создан: id={lesson.id}, номер={lesson_number}")
         
         # Create exercises
+        logger.info("[LessonService] Этап 9: Создание упражнений...")
         exercises = []
         for i, (group, sentence) in enumerate(zip(word_groups, sentences)):
             exercise = LessonExercise(
@@ -858,9 +961,13 @@ class LessonService:
             )
             db.add(exercise)
             exercises.append(exercise)
+            logger.info(f"[LessonService]   Упражнение {i+1}: {len(group)} слов, предложение: {sentence[:50]}...")
+        
+        logger.info(f"[LessonService] ✅ Создано {len(exercises)} упражнений")
         
         # Add NEW words to user_words (only new words, not due words)
-        logger.info(f"[LessonService] Adding {len(new_words)} new words to user_words")
+        logger.info("[LessonService] Этап 10: Добавление новых слов в user_words...")
+        added_count = 0
         for word in new_words:
             # Check if word already exists in user_words
             existing_result = await db.execute(
@@ -884,13 +991,29 @@ class LessonService:
                     incorrect_count=0,
                 )
                 db.add(user_word)
-                logger.info(f"[LessonService] Added word '{word.lemma}' to user_words")
+                added_count += 1
+                logger.info(f"[LessonService]   ✅ Добавлено слово '{word.lemma}' в user_words")
+            else:
+                logger.info(f"[LessonService]   ⏭️ Слово '{word.lemma}' уже есть в user_words")
+        
+        logger.info(f"[LessonService] Итого добавлено в user_words: {added_count} из {len(new_words)}")
         
         # Update profile
+        logger.info("[LessonService] Этап 11: Обновление профиля...")
         profile.current_lesson_number = lesson_number
         await db.flush()
+        logger.info(f"[LessonService] ✅ current_lesson_number обновлён на {lesson_number}")
         
-        logger.info(f"[LessonService] Lesson created: {lesson.id}, {len(exercises)} exercises, {len(new_words)} new words added")
+        logger.info("[LessonService] === ИТОГ ===")
+        logger.info(f"[LessonService] Урок создан: {lesson.id}")
+        logger.info(f"[LessonService] Номер урока: {lesson_number}")
+        logger.info(f"[LessonService] Упражнений: {len(exercises)}")
+        logger.info(f"[LessonService] Всего слов: {len(today_words)}")
+        logger.info(f"[LessonService] Due words: {len(due_dict_words)}")
+        logger.info(f"[LessonService] New words: {len(new_words)}")
+        logger.info(f"[LessonService] Добавлено в user_words: {added_count}")
+        logger.info(f"[LessonService] resumed: False")
+        logger.info("[LessonService] === КОНЕЦ LessonService.start_lesson ===")
         
         return {"lesson": lesson, "exercises": exercises, "resumed": False}
 
@@ -1056,42 +1179,60 @@ async def get_stats(user_id: str, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/lesson/start")
 async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_db)):
+    logger.info("=" * 80)
+    logger.info("[Lesson Start] === НАЧАЛО СОЗДАНИЯ УРОКА ===")
     logger.info(f"[Lesson Start] profile_id={req.profile_id}, force_new={req.force_new}")
     
     # Get profile to find user_id
+    logger.info("[Lesson Start] Этап 1: Получение профиля пользователя...")
     result = await db.execute(
         select(UserLanguageProfile).where(UserLanguageProfile.id == req.profile_id)
     )
     profile = result.scalar_one_or_none()
     if not profile:
-        logger.error(f"[Lesson Start] Profile not found: {req.profile_id}")
+        logger.error(f"[Lesson Start] ❌ Profile not found: {req.profile_id}")
         raise HTTPException(status_code=404, detail="Profile not found")
     
-    logger.info(f"[Lesson Start] Found profile: user_id={profile.user_id}, target_lang={profile.target_lang}")
+    logger.info(f"[Lesson Start] ✅ Профиль найден: user_id={profile.user_id}, target_lang={profile.target_lang}, cefr_level={profile.cefr_level}")
+    
+    logger.info("[Lesson Start] Этап 2: Вызов LessonService.start_lesson...")
     lesson_data = await LessonService.start_lesson(db, profile.user_id, req.profile_id, req.force_new)
+    logger.info(f"[Lesson Start] ✅ LessonService вернул: resumed={lesson_data.get('resumed')}, lesson_id={lesson_data.get('lesson').id if lesson_data.get('lesson') else 'None'}")
     
     # Get user to find native_lang
+    logger.info("[Lesson Start] Этап 3: Получение информации о пользователе для определения родного языка...")
     result = await db.execute(
         select(User).where(User.id == profile.user_id)
     )
     user = result.scalar_one_or_none()
+    logger.info(f"[Lesson Start] ✅ Пользователь найден: native_lang={user.native_lang}")
     
     # Get new words for this lesson
+    logger.info("[Lesson Start] Этап 4: Сбор новых слов для представления пользователю...")
     new_words = []
+    
     if lesson_data and not lesson_data.get("resumed"):
+        logger.info("[Lesson Start] ✅ Это НОВЫЙ урок (не возобновление), собираем слова...")
+        
         # Get all word IDs from exercises
         all_word_ids = set()
         for exercise in lesson_data.get("exercises", []):
             all_word_ids.update(exercise.target_word_ids)
         
+        logger.info(f"[Lesson Start] Найдено {len(all_word_ids)} уникальных ID слов в упражнениях")
+        logger.debug(f"[Lesson Start] Word IDs: {list(all_word_ids)}")
+        
         # Get dictionary entries for these words
         if all_word_ids:
+            logger.info("[Lesson Start] Загрузка словарных записей для этих слов...")
             result = await db.execute(
                 select(Dictionary).where(Dictionary.id.in_(list(all_word_ids)))
             )
             words = result.scalars().all()
+            logger.info(f"[Lesson Start] ✅ Загружено {len(words)} словарных записей")
             
             # Get translations for these words (in user's native language)
+            logger.info(f"[Lesson Start] Получение переводов на родной язык пользователя ({user.native_lang})...")
             for word in words:
                 result = await db.execute(
                     select(DictionaryTranslation).where(
@@ -1102,15 +1243,37 @@ async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_d
                 trans = result.scalar_one_or_none()
                 translations = trans.translations if trans and trans.translations else []
                 
+                if not translations:
+                    logger.warning(f"[Lesson Start] ⚠️ Нет переводов для слова '{word.lemma}' на язык '{user.native_lang}'")
+                else:
+                    logger.debug(f"[Lesson Start] ✅ Переводы для '{word.lemma}': {translations}")
+                
                 new_words.append({
                     "id": word.id,
                     "lemma": word.lemma,
                     "pos": word.pos,
                     "translations": translations
                 })
+            
+            logger.info(f"[Lesson Start] ✅ Собрано {len(new_words)} слов с переводами")
+        else:
+            logger.warning("[Lesson Start] ⚠️ Нет ID слов в упражнениях")
+    else:
+        if lesson_data and lesson_data.get("resumed"):
+            logger.info("[Lesson Start] ⏭️ Это ВОЗОБНОВЛЕНИЕ урока - новые слова не собираются")
+        else:
+            logger.warning("[Lesson Start] ⚠️ lesson_data пустой или None")
     
     lesson_data["new_words"] = new_words
-    logger.info(f"[Lesson Start] Found {len(new_words)} new words for lesson")
+    logger.info(f"[Lesson Start] === ИТОГ ===")
+    logger.info(f"[Lesson Start] Новых слов для представления: {len(new_words)}")
+    if new_words:
+        logger.info(f"[Lesson Start] Список новых слов:")
+        for i, word in enumerate(new_words, 1):
+            logger.info(f"[Lesson Start]   {i}. {word['lemma']} ({word['pos']}) → {', '.join(word['translations'])}")
+    else:
+        logger.warning("[Lesson Start] ❌ НЕТ НОВЫХ СЛОВ ДЛЯ ПРЕДСТАВЛЕНИЯ!")
+    logger.info("=" * 80)
     
     return lesson_data
 
