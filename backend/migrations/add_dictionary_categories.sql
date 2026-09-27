@@ -32,8 +32,27 @@ INSERT INTO dictionary_categories (id, name, description, icon, target_langs) VA
 ON CONFLICT (id) DO NOTHING;
 
 -- Шаг 6: Уникальность слов по категории
--- Удаляем старый уникальный индекс, если он есть
-DROP INDEX IF EXISTS uq_dict_lemma_pos_lang;
+-- Сначала удаляем старый constraint (если есть)
+DO $$
+BEGIN
+    -- Удаляем constraint, если он существует
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE table_name = 'dictionaries' 
+        AND constraint_name = 'uq_dict_lemma_pos_lang'
+    ) THEN
+        ALTER TABLE dictionaries DROP CONSTRAINT uq_dict_lemma_pos_lang;
+    END IF;
+    
+    -- Удаляем индекс, если он существует
+    IF EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE tablename = 'dictionaries' 
+        AND indexname = 'uq_dict_lemma_pos_lang'
+    ) THEN
+        DROP INDEX uq_dict_lemma_pos_lang;
+    END IF;
+END $$;
 
 -- Создаём новый уникальный индекс с учётом категории
 CREATE UNIQUE INDEX IF NOT EXISTS uq_dict_lemma_pos_lang_category 
