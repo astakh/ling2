@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     GIGACHAT_API_URL: str = "https://api.giga.chat/v1"
     GIGACHAT_SCOPE: str = "GIGACHAT_API_PERS"  # GIGACHAT_API_PERS, GIGACHAT_API_B2B, GIGACHAT_API_CORP
     
+    # Spaced repetition parameters
+    MAX_LESSONS: int = 100  # Максимальное количество уроков (максимальный stage)
+    WORDS_PER_LESSON: int = 5  # Количество слов в уроке (по умолчанию)
+    REPETITION_INTERVALS: str = "1,2,4,7,14,21,30,45,60,90"  # Интервалы повторения в уроках
+    
     # Admin panel
     ADMIN_PASSWORD: str = "admin123"  # Пароль для доступа к админке
 

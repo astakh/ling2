@@ -60,6 +60,12 @@ async def startup():
         logger.info("✅ Using GigaChat API")
         logger.warning("⚠️  SSL verification disabled (verify=False) for Sber certificates")
     
+    # Логирование параметров повторения слов
+    logger.info("=" * 70)
+    logger.info("Spaced Repetition Configuration:")
+    logger.info(f"  MAX_LESSONS: {settings.MAX_LESSONS}")
+    logger.info(f"  WORDS_PER_LESSON: {settings.WORDS_PER_LESSON}")
+    logger.info(f"  REPETITION_INTERVALS: {settings.REPETITION_INTERVALS}")
     logger.info("=" * 70)
 
 
@@ -1183,7 +1189,7 @@ async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = D
                 user_word.incorrect_count += 1
             
             # Calculate next due
-            intervals = [1, 2, 4, 7, 14, 21, 30, 45, 60, 90]
+            intervals = [int(x.strip()) for x in settings.REPETITION_INTERVALS.split(",")]
             interval = intervals[min(user_word.stage, len(intervals) - 1)]
             profile_result = await db.execute(
                 select(UserLanguageProfile).where(UserLanguageProfile.id == lesson.user_language_profile_id)
