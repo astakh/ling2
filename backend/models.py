@@ -33,6 +33,7 @@ class UserLanguageProfile(Base):
     current_lesson_number = Column(Integer, default=0)
     words_per_lesson_limit = Column(Integer, default=5)
     daily_lesson_limit = Column(Integer, default=3)
+    dictionary_category = Column(String(50), default="general")  # НОВОЕ: категория словаря
     created_at = Column(DateTime, server_default=func.now())
     
     user = relationship("User", back_populates="profiles")
@@ -65,13 +66,27 @@ class Dictionary(Base):
     lemma = Column(String(100), nullable=False)
     pos = Column(String(20), nullable=False)
     cefr_level = Column(String(5), nullable=False)
+    category = Column(String(50), default="general", index=True)  # НОВОЕ: категория словаря
     
     translations = relationship("DictionaryTranslation", back_populates="dictionary")
     
     __table_args__ = (
-        UniqueConstraint("lemma", "pos", "target_lang", name="uq_dict_lemma_pos_lang"),
+        UniqueConstraint("lemma", "pos", "target_lang", "category", name="uq_dict_lemma_pos_lang_category"),
         Index("ix_dict_lang_level", "target_lang", "cefr_level"),
+        Index("ix_dict_lang_category", "target_lang", "category"),
     )
+
+
+class DictionaryCategory(Base):
+    """Категории словарей (general, IT, business и т.д.)"""
+    __tablename__ = "dictionary_categories"
+    
+    id = Column(String(50), primary_key=True)  # 'general', 'it', 'business'
+    name = Column(String(100), nullable=False)
+    description = Column(Text)
+    icon = Column(String(50))  # emoji или название иконки
+    target_langs = Column(JSONB, default=[])  # для каких языков доступна
+    created_at = Column(DateTime, server_default=func.now())
 
 
 class DictionaryTranslation(Base):

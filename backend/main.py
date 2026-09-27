@@ -13,7 +13,8 @@ from datetime import datetime, date
 from database import get_db, init_db
 from models import (
     User, UserLanguageProfile, UserStats, Dictionary, 
-    DictionaryTranslation, UserWord, Lesson, LessonExercise, LLMCallLog
+    DictionaryTranslation, UserWord, Lesson, LessonExercise, LLMCallLog,
+    DictionaryCategory  # НОВОЕ
 )
 from config import settings
 
@@ -81,6 +82,7 @@ class SetupProfileRequest(BaseModel):
     target_lang: str
     cefr_level: str
     words_per_lesson_limit: int = 5
+    dictionary_category: str = "general"  # НОВОЕ: категория словаря
 
 class StartLessonRequest(BaseModel):
     profile_id: str
@@ -109,6 +111,7 @@ class ProfileResponse(BaseModel):
     current_lesson_number: int
     words_per_lesson_limit: int
     daily_lesson_limit: int
+    dictionary_category: str = "general"  # НОВОЕ
 
 
 # ==================== GIGACHAT LLM ====================
@@ -652,11 +655,13 @@ class LessonService:
     
     @staticmethod
     async def get_new_words(db: AsyncSession, profile_id: str, target_lang: str, 
-                            limit: int, exclude_ids: set, cefr_level: str = "A1") -> list:
+                            limit: int, exclude_ids: set, cefr_level: str = "A1",
+                            category: str = "general") -> list:  # НОВОЕ: параметр category
         logger.info(f"[LessonService.get_new_words] === Начало поиска новых слов ===")
         logger.info(f"[LessonService.get_new_words] Параметры:")
         logger.info(f"[LessonService.get_new_words]   - profile_id: {profile_id}")
         logger.info(f"[LessonService.get_new_words]   - target_lang: {target_lang}")
+        logger.info(f"[LessonService.get_new_words]   - category: {category}")  # НОВОЕ
         logger.info(f"[LessonService.get_new_words]   - limit: {limit}")
         logger.info(f"[LessonService.get_new_words]   - exclude_ids: {len(exclude_ids)} слов")
         logger.info(f"[LessonService.get_new_words]   - cefr_level: {cefr_level}")
@@ -689,15 +694,17 @@ class LessonService:
         logger.info(f"[LessonService.get_new_words] Уровень пользователя: {cefr_level}")
         logger.info(f"[LessonService.get_new_words] Разрешённые уровни слов: {allowed_levels}")
         
-        # Get available words filtered by CEFR level
+        # Get available words filtered by CEFR level AND category
         logger.info(f"[LessonService.get_new_words] Ищем слова в словаре...")
         logger.info(f"[LessonService.get_new_words]   - Язык: {target_lang}")
+        logger.info(f"[LessonService.get_new_words]   - Категория: {category}")  # НОВОЕ
         logger.info(f"[LessonService.get_new_words]   - Уровни: {allowed_levels}")
         logger.info(f"[LessonService.get_new_words]   - Исключаем: {len(learned_ids)} слов")
         logger.info(f"[LessonService.get_new_words]   - Лимит: {limit}")
         
         query = select(Dictionary).where(
             Dictionary.target_lang == target_lang,
+            Dictionary.category == category,  # НОВОЕ: фильтр по категории
             Dictionary.cefr_level.in_(allowed_levels)
         )
         if learned_ids:
@@ -904,9 +911,10 @@ class LessonService:
         dictionary_exhausted = False
         
         if needed > 0:
-            logger.info(f"[LessonService] Ищем новые слова для языка '{profile.target_lang}', уровень '{profile.cefr_level}'...")
+            logger.info(f"[LessonService] Ищем новые слова для языка '{profile.target_lang}', категория '{profile.dictionary_category}', уровень '{profile.cefr_level}'...")
             new_words = await LessonService.get_new_words(
-                db, profile_id, profile.target_lang, needed, due_dict_ids, profile.cefr_level
+                db, profile_id, profile.target_lang, needed, due_dict_ids, profile.cefr_level,
+                profile.dictionary_category  # НОВОЕ: передаём категорию
             )
             logger.info(f"[LessonService] ✅ Найдено {len(new_words)} новых слов")
             
@@ -1072,7 +1080,7 @@ async def get_user_profile(user_id: str, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/profile/setup", response_model=ProfileResponse)
 async def setup_profile(req: SetupProfileRequest, db: AsyncSession = Depends(get_db)):
-    logger.info(f"[Profile Setup] user_id={req.user_id}, target_lang={req.target_lang}, level={req.cefr_level}, intensity={req.words_per_lesson_limit}")
+    logger.info(f"[Profile Setup] user_id={req.user_id}, target_lang={req.target_lang}, level={req.cefr_level}, intensity={req.words_per_lesson_limit}, category={req.dictionary_category}")
     
     # Get user
     result = await db.execute(select(User).where(User.id == req.user_id))
@@ -1097,6 +1105,7 @@ async def setup_profile(req: SetupProfileRequest, db: AsyncSession = Depends(get
         # Update existing profile
         existing_profile.cefr_level = req.cefr_level
         existing_profile.words_per_lesson_limit = req.words_per_lesson_limit
+        existing_profile.dictionary_category = req.dictionary_category
         await db.flush()
         logger.info(f"[Profile Setup] Updated existing profile: {existing_profile.id}")
         return existing_profile
@@ -1108,10 +1117,11 @@ async def setup_profile(req: SetupProfileRequest, db: AsyncSession = Depends(get
         target_lang=req.target_lang,
         cefr_level=req.cefr_level,
         words_per_lesson_limit=req.words_per_lesson_limit,
+        dictionary_category=req.dictionary_category,  # НОВОЕ
     )
     db.add(profile)
     await db.flush()
-    logger.info(f"[Profile Setup] Created new profile: {profile.id}")
+    logger.info(f"[Profile Setup] Created new profile: {profile.id} with category {req.dictionary_category}")
     return profile
 
 @app.get("/api/profile/{profile_id}", response_model=ProfileResponse)
@@ -1231,7 +1241,8 @@ async def replace_word(req: ReplaceWordRequest, db: AsyncSession = Depends(get_d
         profile.target_lang, 
         1,  # Need only 1 word
         user_word_ids, 
-        profile.cefr_level
+        profile.cefr_level,
+        profile.dictionary_category  # НОВОЕ: передаём категорию
     )
     
     if not new_word:
@@ -1701,6 +1712,217 @@ async def get_dictionary(target_lang: str, db: AsyncSession = Depends(get_db)):
     
     logger.info(f"[Dictionary] Found {len(dictionary)} words for {target_lang}")
     return {"words": dictionary}
+
+# ==================== DICTIONARY CATEGORIES ====================
+
+class DictionaryCategoryResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    icon: Optional[str]
+    target_langs: List[str]
+    word_count: int
+
+@app.get("/api/dictionary-categories")
+async def get_dictionary_categories(target_lang: str, db: AsyncSession = Depends(get_db)):
+    """Получить список категорий словарей для указанного языка с количеством слов"""
+    logger.info(f"[DictionaryCategories] Fetching categories for language: {target_lang}")
+    
+    # Получаем все категории
+    result = await db.execute(select(DictionaryCategory))
+    categories = result.scalars().all()
+    
+    # Для каждой категории считаем количество слов для данного языка
+    categories_with_count = []
+    for category in categories:
+        # Проверяем, доступна ли категория для данного языка
+        target_langs = category.target_langs or []
+        if target_lang not in target_langs:
+            continue
+        
+        # Считаем количество слов
+        result = await db.execute(
+            select(func.count(Dictionary.id)).where(
+                Dictionary.target_lang == target_lang,
+                Dictionary.category == category.id
+            )
+        )
+        word_count = result.scalar() or 0
+        
+        categories_with_count.append({
+            "id": category.id,
+            "name": category.name,
+            "description": category.description,
+            "icon": category.icon,
+            "target_langs": target_langs,
+            "word_count": word_count
+        })
+    
+    logger.info(f"[DictionaryCategories] Found {len(categories_with_count)} categories for {target_lang}")
+    return {"categories": categories_with_count}
+
+
+class ChangeDictionaryRequest(BaseModel):
+    category: str
+
+@app.put("/api/profile/{profile_id}/dictionary")
+async def change_dictionary(profile_id: str, req: ChangeDictionaryRequest, db: AsyncSession = Depends(get_db)):
+    """Изменить словарь для профиля пользователя"""
+    logger.info(f"[ChangeDictionary] Changing dictionary for profile {profile_id} to category {req.category}")
+    
+    # Получаем профиль
+    result = await db.execute(
+        select(UserLanguageProfile).where(UserLanguageProfile.id == profile_id)
+    )
+    profile = result.scalar_one_or_none()
+    
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    # Проверяем, что категория существует
+    result = await db.execute(
+        select(DictionaryCategory).where(DictionaryCategory.id == req.category)
+    )
+    category = result.scalar_one_or_none()
+    
+    if not category:
+        raise HTTPException(status_code=404, detail="Dictionary category not found")
+    
+    # Проверяем, что категория доступна для данного языка
+    target_langs = category.target_langs or []
+    if profile.target_lang not in target_langs:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Category {req.category} is not available for language {profile.target_lang}"
+        )
+    
+    # Обновляем категорию
+    old_category = profile.dictionary_category
+    profile.dictionary_category = req.category
+    await db.flush()
+    
+    logger.info(f"[ChangeDictionary] Changed dictionary from {old_category} to {req.category}")
+    
+    return {
+        "status": "success",
+        "old_category": old_category,
+        "new_category": req.category
+    }
+
+
+@app.get("/api/language-stats/{profile_id}")
+async def get_language_stats(profile_id: str, db: AsyncSession = Depends(get_db)):
+    """Получить статистику по конкретному языку"""
+    logger.info(f"[LanguageStats] Fetching stats for profile: {profile_id}")
+    
+    # Получаем профиль
+    result = await db.execute(
+        select(UserLanguageProfile).where(UserLanguageProfile.id == profile_id)
+    )
+    profile = result.scalar_one_or_none()
+    
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    # Получаем статистику пользователя
+    result = await db.execute(
+        select(UserStats).where(UserStats.user_id == profile.user_id)
+    )
+    stats = result.scalar_one_or_none()
+    
+    # Считаем слова для этого профиля
+    result = await db.execute(
+        select(func.count(UserWord.id)).where(
+            UserWord.user_language_profile_id == profile_id,
+            UserWord.status == "active"
+        )
+    )
+    active_words = result.scalar() or 0
+    
+    result = await db.execute(
+        select(func.count(UserWord.id)).where(
+            UserWord.user_language_profile_id == profile_id,
+            UserWord.status == "learned"
+        )
+    )
+    learned_words = result.scalar() or 0
+    
+    # Считаем уроки для этого профиля
+    result = await db.execute(
+        select(func.count(Lesson.id)).where(
+            Lesson.user_language_profile_id == profile_id,
+            Lesson.status == "completed"
+        )
+    )
+    completed_lessons = result.scalar() or 0
+    
+    # Получаем информацию о словаре
+    result = await db.execute(
+        select(DictionaryCategory).where(DictionaryCategory.id == profile.dictionary_category)
+    )
+    category = result.scalar_one_or_none()
+    
+    return {
+        "profile_id": profile_id,
+        "target_lang": profile.target_lang,
+        "cefr_level": profile.cefr_level,
+        "dictionary_category": profile.dictionary_category,
+        "dictionary_name": category.name if category else "Unknown",
+        "dictionary_icon": category.icon if category else "📚",
+        "words_per_lesson_limit": profile.words_per_lesson_limit,
+        "daily_lesson_limit": profile.daily_lesson_limit,
+        "current_lesson_number": profile.current_lesson_number,
+        "active_words": active_words,
+        "learned_words": learned_words,
+        "total_words": active_words + learned_words,
+        "completed_lessons": completed_lessons,
+        "current_streak": stats.current_streak if stats else 0,
+        "longest_streak": stats.longest_streak if stats else 0
+    }
+
+
+@app.get("/api/user/profiles")
+async def get_user_profiles(user_id: str, db: AsyncSession = Depends(get_db)):
+    """Получить все языковые профили пользователя"""
+    logger.info(f"[UserProfiles] Fetching profiles for user: {user_id}")
+    
+    result = await db.execute(
+        select(UserLanguageProfile).where(UserLanguageProfile.user_id == user_id)
+    )
+    profiles = result.scalars().all()
+    
+    profiles_data = []
+    for profile in profiles:
+        # Получаем информацию о словаре
+        result = await db.execute(
+            select(DictionaryCategory).where(DictionaryCategory.id == profile.dictionary_category)
+        )
+        category = result.scalar_one_or_none()
+        
+        # Считаем слова
+        result = await db.execute(
+            select(func.count(UserWord.id)).where(
+                UserWord.user_language_profile_id == profile.id
+            )
+        )
+        total_words = result.scalar() or 0
+        
+        profiles_data.append({
+            "id": profile.id,
+            "target_lang": profile.target_lang,
+            "cefr_level": profile.cefr_level,
+            "dictionary_category": profile.dictionary_category,
+            "dictionary_name": category.name if category else "Unknown",
+            "dictionary_icon": category.icon if category else "📚",
+            "words_per_lesson_limit": profile.words_per_lesson_limit,
+            "daily_lesson_limit": profile.daily_lesson_limit,
+            "current_lesson_number": profile.current_lesson_number,
+            "total_words": total_words
+        })
+    
+    logger.info(f"[UserProfiles] Found {len(profiles_data)} profiles")
+    return {"profiles": profiles_data}
+
 
 @app.get("/api/health")
 async def health():

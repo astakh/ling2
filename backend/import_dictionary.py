@@ -27,6 +27,7 @@ from models import Dictionary, DictionaryTranslation
 VALID_POS = ["noun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "article", "numeral"]
 VALID_LANGS = ["en", "de", "es", "fr", "ru", "it", "pt", "zh", "ja", "ko"]
 VALID_CEFR = ["A1", "A2", "B1", "B2", "C1", "C2"]
+VALID_CATEGORIES = ["general", "it", "business"]  # НОВОЕ: валидные категории
 
 
 def validate_word(word_data: dict, index: int, default_lang: str) -> tuple[bool, list[str]]:
@@ -64,7 +65,7 @@ def validate_word(word_data: dict, index: int, default_lang: str) -> tuple[bool,
     return len(errors) == 0, errors
 
 
-async def import_words(session: AsyncSession, words: list, dry_run: bool = False, default_lang: str = "en") -> dict:
+async def import_words(session: AsyncSession, words: list, dry_run: bool = False, default_lang: str = "en", default_category: str = "general") -> dict:
     """Импорт слов в базу данных"""
     stats = {"added": 0, "skipped": 0, "errors": 0, "validation_errors": 0}
     
@@ -83,14 +84,23 @@ async def import_words(session: AsyncSession, words: list, dry_run: bool = False
             pos = word_data["pos"].strip()
             cefr_level = word_data["cefr_level"].strip()
             target_lang = (word_data.get("target_lang") or default_lang).strip()
+            category = (word_data.get("category") or default_category).strip()  # НОВОЕ
             translations = word_data["translations"]
             
-            # Проверить уникальность
+            # Проверка категории
+            if category not in VALID_CATEGORIES:
+                print(f"  ❌ Слово #{index+1}: неверная category '{category}'")
+                stats["validation_errors"] += 1
+                stats["errors"] += 1
+                continue
+            
+            # Проверить уникальность (с учётом категории)
             result = await session.execute(
                 select(Dictionary).where(
                     Dictionary.lemma == lemma,
                     Dictionary.pos == pos,
                     Dictionary.target_lang == target_lang,
+                    Dictionary.category == category,  # НОВОЕ: проверяем уникальность с учётом категории
                 )
             )
             existing = result.scalar_one_or_none()
@@ -98,11 +108,11 @@ async def import_words(session: AsyncSession, words: list, dry_run: bool = False
             if existing:
                 stats["skipped"] += 1
                 if not dry_run:
-                    print(f"  ⏭️  Пропущено (дубликат): {lemma} ({pos}) [{target_lang}]")
+                    print(f"  ⏭️  Пропущено (дубликат): {lemma} ({pos}) [{target_lang}/{category}]")
                 continue
             
             if dry_run:
-                print(f"  ✅ [DRY] Будет добавлено: {lemma} ({pos}) [{target_lang}] - {', '.join(translations[:2])}")
+                print(f"  ✅ [DRY] Будет добавлено: {lemma} ({pos}) [{target_lang}/{category}] - {', '.join(translations[:2])}")
                 stats["added"] += 1
                 continue
             
@@ -114,6 +124,7 @@ async def import_words(session: AsyncSession, words: list, dry_run: bool = False
                 lemma=lemma,
                 pos=pos,
                 cefr_level=cefr_level,
+                category=category,  # НОВОЕ: добавляем категорию
             )
             session.add(dict_entry)
             await session.flush()
@@ -142,6 +153,7 @@ async def main():
     parser = argparse.ArgumentParser(description='Импорт слов из JSON-файла в базу данных')
     parser.add_argument('--file', type=str, default='words.json', help='Путь к JSON-файлу (по умолчанию: words.json)')
     parser.add_argument('--lang', type=str, default='en', help='Язык по умолчанию (по умолчанию: en). Используется если в файле нет target_lang')
+    parser.add_argument('--category', type=str, default='general', help='Категория словаря (по умолчанию: general). Допустимые: general, it, business')
     parser.add_argument('--dry-run', action='store_true', help='Только показать, что будет добавлено')
     args = parser.parse_args()
     
@@ -149,6 +161,12 @@ async def main():
     if args.lang and args.lang not in VALID_LANGS:
         print(f"❌ Неверный язык: {args.lang}")
         print(f"Допустимые значения: {', '.join(VALID_LANGS)}")
+        sys.exit(1)
+    
+    # Проверка параметра --category
+    if args.category and args.category not in VALID_CATEGORIES:
+        print(f"❌ Неверная категория: {args.category}")
+        print(f"Допустимые значения: {', '.join(VALID_CATEGORIES)}")
         sys.exit(1)
     
     # Проверить наличие файла
@@ -164,6 +182,13 @@ async def main():
       "pos": "noun",
       "cefr_level": "A1",
       "translations": ["дом", "жилище"]
+    },
+    {
+      "lemma": "algorithm",
+      "pos": "noun",
+      "cefr_level": "B1",
+      "category": "it",
+      "translations": ["алгоритм"]
     }
   ]
 }
@@ -194,6 +219,7 @@ async def main():
     
     print(f"📊 Найдено слов: {len(words)}")
     print(f"🌍 Язык по умолчанию: {args.lang}")
+    print(f"📚 Категория по умолчанию: {args.category}")  # НОВОЕ
     print(f"🔧 Режим: {'DRY RUN (без записи в БД)' if args.dry_run else 'REAL (запись в БД)'}")
     print("=" * 70)
     
@@ -203,7 +229,7 @@ async def main():
     async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
     async with async_session() as session:
-        stats = await import_words(session, words, args.dry_run, args.lang)
+        stats = await import_words(session, words, args.dry_run, args.lang, args.category)  # НОВОЕ: передаём category
         await session.commit()
     
     await engine.dispose()
