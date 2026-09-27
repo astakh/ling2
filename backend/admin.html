@@ -295,6 +295,57 @@
             overflow-x: auto;
             margin-top: 20px;
         }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 20px 0;
+        }
+        
+        .pagination button {
+            padding: 8px 16px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .pagination button:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .pagination .page-info {
+            font-size: 14px;
+            color: #666;
+            padding: 0 10px;
+        }
+        
+        .pagination .page-size {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: 20px;
+        }
+        
+        .pagination select {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -342,6 +393,9 @@
     <script>
         // Используем относительные пути, так как админка на том же домене
         let adminPassword = '';
+        let currentTableName = null;
+        let currentPage = 1;
+        let currentLimit = 50;
         
         // Login form
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -428,22 +482,28 @@
         }
         
         // Load table data
-        async function loadTableData(tableName, btn) {
+        async function loadTableData(tableName, btn, page = 1, limit = 50) {
             // Update active button
-            document.querySelectorAll('.table-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            if (btn) {
+                document.querySelectorAll('.table-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
+            
+            currentTableName = tableName;
+            currentPage = page;
+            currentLimit = limit;
             
             const dataViewer = document.getElementById('dataViewer');
-            const currentTable = document.getElementById('currentTable');
+            const currentTableHeader = document.getElementById('currentTable');
             const dataContent = document.getElementById('dataContent');
             
             dataViewer.style.display = 'block';
-            currentTable.textContent = `Таблица: ${tableName}`;
+            currentTableHeader.textContent = `Таблица: ${tableName}`;
             dataContent.innerHTML = '<div class="loading"><div class="spinner"></div>Загрузка...</div>';
             
             try {
-                console.log('Loading table data for:', tableName);
-                const response = await fetch(`/admin/table/${tableName}?password=${adminPassword}&limit=100`);
+                console.log('Loading table data for:', tableName, 'page:', page, 'limit:', limit);
+                const response = await fetch(`/admin/table/${tableName}?password=${adminPassword}&page=${page}&limit=${limit}`);
                 console.log('Table data response:', response.status);
                 const data = await response.json();
                 console.log('Table data:', data);
@@ -453,8 +513,8 @@
                     return;
                 }
                 
-                // Показываем количество записей
-                const countInfo = `<p style="color: #666; margin-bottom: 10px;">Записей: ${data.count}</p>`;
+                // Показываем информацию о пагинации
+                const countInfo = `<p style="color: #666; margin-bottom: 10px;">Показано ${data.count} из ${data.total_count} записей (страница ${data.page} из ${data.total_pages})</p>`;
                 
                 let html = countInfo + '<div class="table-container"><table class="data-table">';
                 html += '<thead><tr>';
@@ -479,6 +539,22 @@
                 });
                 
                 html += '</tbody></table></div>';
+                
+                // Добавить пагинацию
+                html += '<div class="pagination">';
+                html += `<button onclick="loadTableData('${tableName}', null, ${page - 1}, ${limit})" ${page <= 1 ? 'disabled' : ''}>← Назад</button>`;
+                html += `<span class="page-info">Страница ${page} из ${data.total_pages}</span>`;
+                html += `<button onclick="loadTableData('${tableName}', null, ${page + 1}, ${limit})" ${page >= data.total_pages ? 'disabled' : ''}>Вперёд →</button>`;
+                html += '<div class="page-size">';
+                html += '<label>Записей на странице:</label>';
+                html += `<select onchange="loadTableData('${tableName}', null, 1, this.value)">`;
+                [20, 50, 100].forEach(size => {
+                    html += `<option value="${size}" ${size === limit ? 'selected' : ''}>${size}</option>`;
+                });
+                html += '</select>';
+                html += '</div>';
+                html += '</div>';
+                
                 dataContent.innerHTML = html;
             } catch (error) {
                 dataContent.innerHTML = `<p style="color: red; text-align: center; padding: 40px;">Ошибка загрузки: ${error.message}</p>`;

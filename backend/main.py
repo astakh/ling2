@@ -134,14 +134,16 @@ class MockLLMService:
         user_translation: str, 
         target_words: list,
         native_lang: str,
-        db: AsyncSession = None
+        db: AsyncSession = None,
+        profile_id: str = None
     ) -> dict:
-        """Проверка перевода с получением переводов из БД"""
+        """Проверка перевода с получением переводов из БД и предложением новых слов"""
         from sqlalchemy import select
-        from models import Dictionary, DictionaryTranslation
+        from models import Dictionary, DictionaryTranslation, UserWord
         
         word_results = []
         correct_translations = []
+        suggested_new_words = []
         
         for word in target_words:
             word_id = word["id"]
@@ -193,6 +195,22 @@ class MockLLMService:
             
             if translations:
                 correct_translations.append(f"{lemma} = {translations[0]}")
+            
+            # Если слово переведено неправильно, предлагаем его для добавления
+            if not is_correct and db and profile_id:
+                # Проверяем, есть ли это слово уже в user_words
+                existing_result = await db.execute(
+                    select(UserWord).where(
+                        UserWord.user_language_profile_id == profile_id,
+                        UserWord.dictionary_id == word_id
+                    )
+                )
+                existing_word = existing_result.scalar_one_or_none()
+                
+                # Если слова нет в user_words, предлагаем его добавить
+                if not existing_word:
+                    suggested_new_words.append(word_id)
+                    logger.info(f"[MockLLM] Suggesting new word: {lemma} ({word_id})")
         
         overall_correct = all(w["is_correct"] for w in word_results)
         
@@ -201,7 +219,7 @@ class MockLLMService:
         
         return {
             "word_results": word_results,
-            "suggested_new_words": [],
+            "suggested_new_words": suggested_new_words,
             "overall_correct": overall_correct,
             "correct_translation": correct_translation
         }
@@ -375,7 +393,8 @@ class GigaChatService:
         user_translation: str, 
         target_words: list,
         native_lang: str,
-        db: AsyncSession = None
+        db: AsyncSession = None,
+        profile_id: str = None
     ) -> dict:
         """Оценивает перевод через GigaChat API
         
@@ -383,7 +402,7 @@ class GigaChatService:
         """
         import httpx
         from sqlalchemy import select
-        from models import DictionaryTranslation
+        from models import DictionaryTranslation, UserWord
         
         # Получаем переводы слов из БД
         words_with_translations = []
@@ -426,13 +445,14 @@ class GigaChatService:
 3. Игнорируй точность перевода нецелевых слов, если общий смысл сохранён
 4. В поле word_id используй ТОЧНЫЕ ID из списка выше
 5. Предложи правильный перевод всего предложения
+6. В поле suggested_new_words верни word_id слов, которые пользователь перевёл НЕПРАВИЛЬНО (is_correct: false)
 
 Верни ТОЛЬКО JSON без дополнительного текста в формате:
 {{
     "word_results": [
         {{"word_id": "точное_id_из_списка", "lemma": "слово", "translation": "перевод", "is_correct": true, "has_typo": false}}
     ],
-    "suggested_new_words": [],
+    "suggested_new_words": ["word_id_1", "word_id_2"],
     "overall_correct": true,
     "correct_translation": "правильный перевод предложения на русский"
 }}"""
@@ -475,6 +495,36 @@ class GigaChatService:
             try:
                 result = json.loads(content)
                 logger.info(f"[GigaChat] Translation evaluated, overall_correct: {result.get('overall_correct')}")
+                
+                # Фильтруем suggested_new_words - проверяем, что слова есть в dictionaries и не добавлены в user_words
+                if db and profile_id and "suggested_new_words" in result:
+                    suggested_ids = result["suggested_new_words"]
+                    filtered_suggestions = []
+                    
+                    for word_id in suggested_ids:
+                        # Проверяем, есть ли слово в dictionaries
+                        dict_result = await db.execute(
+                            select(Dictionary).where(Dictionary.id == word_id)
+                        )
+                        dict_word = dict_result.scalar_one_or_none()
+                        
+                        if dict_word:
+                            # Проверяем, есть ли это слово уже в user_words
+                            user_word_result = await db.execute(
+                                select(UserWord).where(
+                                    UserWord.user_language_profile_id == profile_id,
+                                    UserWord.dictionary_id == word_id
+                                )
+                            )
+                            user_word = user_word_result.scalar_one_or_none()
+                            
+                            # Если слова нет в user_words, предлагаем его добавить
+                            if not user_word:
+                                filtered_suggestions.append(word_id)
+                                logger.info(f"[GigaChat] Suggesting new word: {dict_word.lemma} ({word_id})")
+                    
+                    result["suggested_new_words"] = filtered_suggestions
+                
                 return result
             except json.JSONDecodeError:
                 pass
@@ -486,6 +536,33 @@ class GigaChatService:
                 try:
                     result = json.loads(match.group())
                     logger.info(f"[GigaChat] Extracted JSON from text")
+                    
+                    # Фильтруем suggested_new_words
+                    if db and profile_id and "suggested_new_words" in result:
+                        suggested_ids = result["suggested_new_words"]
+                        filtered_suggestions = []
+                        
+                        for word_id in suggested_ids:
+                            dict_result = await db.execute(
+                                select(Dictionary).where(Dictionary.id == word_id)
+                            )
+                            dict_word = dict_result.scalar_one_or_none()
+                            
+                            if dict_word:
+                                user_word_result = await db.execute(
+                                    select(UserWord).where(
+                                        UserWord.user_language_profile_id == profile_id,
+                                        UserWord.dictionary_id == word_id
+                                    )
+                                )
+                                user_word = user_word_result.scalar_one_or_none()
+                                
+                                if not user_word:
+                                    filtered_suggestions.append(word_id)
+                                    logger.info(f"[GigaChat] Suggesting new word: {dict_word.lemma} ({word_id})")
+                        
+                        result["suggested_new_words"] = filtered_suggestions
+                    
                     return result
                 except json.JSONDecodeError:
                     pass
@@ -1018,6 +1095,7 @@ async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = D
         target_words,
         user.native_lang,
         db=db,  # Передаём сессию БД для получения переводов
+        profile_id=lesson.user_language_profile_id  # Передаём profile_id для проверки user_words
     )
     
     # Update exercise
@@ -1249,8 +1327,8 @@ async def get_tables(password: str, db: AsyncSession = Depends(get_db)):
     return {"tables": tables}
 
 @app.get("/admin/table/{table_name}")
-async def get_table_data(table_name: str, password: str, limit: int = 100, db: AsyncSession = Depends(get_db)):
-    """Получить данные из таблицы"""
+async def get_table_data(table_name: str, password: str, page: int = 1, limit: int = 50, db: AsyncSession = Depends(get_db)):
+    """Получить данные из таблицы с пагинацией"""
     verify_admin_password(password)
     
     # Проверка на SQL injection
@@ -1263,7 +1341,24 @@ async def get_table_data(table_name: str, password: str, limit: int = 100, db: A
     if table_name not in allowed_tables:
         raise HTTPException(status_code=400, detail=f"Table '{table_name}' not allowed")
     
-    result = await db.execute(text(f"SELECT * FROM {table_name} LIMIT :limit"), {"limit": limit})
+    # Валидация параметров пагинации
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 50
+    
+    # Получить общее количество записей
+    count_result = await db.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+    total_count = count_result.scalar()
+    
+    # Вычислить offset
+    offset = (page - 1) * limit
+    
+    # Получить данные с пагинацией
+    result = await db.execute(
+        text(f"SELECT * FROM {table_name} LIMIT :limit OFFSET :offset"),
+        {"limit": limit, "offset": offset}
+    )
     rows = result.fetchall()
     columns = result.keys()
     
@@ -1278,11 +1373,18 @@ async def get_table_data(table_name: str, password: str, limit: int = 100, db: A
             row_dict[col] = value
         data.append(row_dict)
     
+    # Вычислить общее количество страниц
+    total_pages = (total_count + limit - 1) // limit
+    
     return {
         "table": table_name,
         "columns": list(columns),
         "data": data,
-        "count": len(data)
+        "count": len(data),
+        "total_count": total_count,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages
     }
 
 @app.get("/admin/stats")
