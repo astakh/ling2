@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, BookOpen, Target, TrendingUp, RotateCcw, Loader2, Settings } from 'lucide-react';
+import { Settings, RotateCcw, BookOpen, Target, TrendingUp, Flame } from 'lucide-react';
 import { getUser, getProfile, getStats, resetAll } from '../store';
 import { startLesson } from '../services/lessonService';
 import { fetchUserWords, fetchStats } from '../services/lessonService';
@@ -10,10 +10,6 @@ import Toast, { ToastType } from '../components/Toast';
 
 const langNames: Record<string, string> = {
   en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ru: 'Русский'
-};
-
-const langFlags: Record<string, string> = {
-  en: '🇬🇧', de: '🇩🇪', es: '🇪🇸', fr: '🇫🇷', ru: '🇷🇺'
 };
 
 export default function Dashboard() {
@@ -26,65 +22,45 @@ export default function Dashboard() {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   useEffect(() => {
-    console.log('[Dashboard] Component mounted, user:', user, 'profile:', profile);
     loadData();
   }, []);
 
   const loadData = async () => {
-    console.log('[Dashboard] Loading data...');
     setLoading(true);
     const [statsData, wordsData] = await Promise.all([
       fetchStats(),
       fetchUserWords(),
     ]);
-    console.log('[Dashboard] Data loaded:', { stats: statsData, words: wordsData });
     setStats(statsData);
     setUserWords(wordsData);
     setLoading(false);
   };
 
   const handleStartLesson = async () => {
-    console.log('[Dashboard] Starting lesson...');
-    console.log('[Dashboard] Current user:', user);
-    console.log('[Dashboard] Current profile:', profile);
     setToast(null);
     
     try {
-      const session = await startLesson(true); // force_new=true для генерации новых предложений
-      console.log('[Dashboard] Lesson session:', session);
+      const session = await startLesson(true);
       
       if (!session) {
-        console.error('[Dashboard] Failed to start lesson');
-        setToast({ message: 'Не удалось начать урок. Попробуйте позже.', type: 'error' });
+        setToast({ message: 'Не удалось начать урок', type: 'error' });
         return;
       }
       
-      // Сохраняем данные урока в sessionStorage для Lesson.tsx
-      console.log('[Dashboard] Saving lesson data to sessionStorage');
       sessionStorage.setItem('currentLesson', JSON.stringify(session));
-      
-      console.log('[Dashboard] Navigating to /lesson');
       navigate('/lesson');
     } catch (error: any) {
-      console.error('[Dashboard] Error starting lesson:', error);
-      
-      // Проверяем, если это ошибка дневного лимита
       if (error.message && error.message.includes('429')) {
-        // Извлекаем сообщение из ошибки
         const match = error.message.match(/Дневной лимит уроков достигнут:.*$/);
-        if (match) {
-          setToast({ message: match[0], type: 'info' });
-        } else {
-          setToast({ message: 'Дневной лимит уроков достигнут. Продолжим завтра!', type: 'info' });
-        }
+        setToast({ message: match ? match[0] : 'Дневной лимит достигнут', type: 'info' });
       } else {
-        setToast({ message: 'Не удалось начать урок. Попробуйте позже.', type: 'error' });
+        setToast({ message: 'Не удалось начать урок', type: 'error' });
       }
     }
   };
 
   const handleReset = () => {
-    if (confirm('Сбросить все данные? Это действие необратимо.')) {
+    if (confirm('Сбросить все данные?')) {
       resetAll();
       navigate('/onboarding');
     }
@@ -93,7 +69,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <div className="animate-pulse text-gray-400">Загрузка...</div>
       </div>
     );
   }
@@ -101,110 +77,109 @@ export default function Dashboard() {
   const activeWords = userWords.filter((w: any) => w.status === 'active').length;
 
   return (
-    <div className="min-h-screen p-4 pb-20">
-      {/* Header */}
-      <div className="max-w-lg mx-auto">
+    <div className="min-h-screen">
+      <div className="max-w-2xl mx-auto px-6 py-12">
+        {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8 pt-4"
+          className="flex items-center justify-between mb-12"
         >
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">
-              Привет, {user?.name} 👋
+            <h1 className="text-3xl font-bold text-gray-900">
+              Привет, {user?.name}
             </h1>
-            <p className="text-gray-500 flex items-center gap-1">
-              {langFlags[profile?.targetLang || 'en']} {langNames[profile?.targetLang || 'en']} • {profile?.cefrLevel}
+            <p className="text-gray-500 mt-1">
+              {langNames[profile?.targetLang || 'en']} • {profile?.cefrLevel}
             </p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => navigate('/profile')}
-              className="p-2 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
-              title="Настройки профиля"
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             >
               <Settings className="w-5 h-5" />
             </button>
             <button
               onClick={handleReset}
-              className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-              title="Сбросить данные"
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             >
               <RotateCcw className="w-5 h-5" />
             </button>
           </div>
         </motion.div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-4 mb-8">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            className="card p-6"
           >
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-3 mb-2">
               <Flame className="w-5 h-5 text-orange-500" />
               <span className="text-sm text-gray-500">Стрик</span>
             </div>
-            <div className="text-3xl font-bold text-gray-800">{stats?.current_streak || 0}</div>
-            <div className="text-xs text-gray-400">дней подряд</div>
+            <div className="text-3xl font-bold text-gray-900">{stats?.current_streak || 0}</div>
+            <div className="text-xs text-gray-400 mt-1">дней подряд</div>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            transition={{ delay: 0.15 }}
+            className="card p-6"
           >
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-3 mb-2">
               <BookOpen className="w-5 h-5 text-blue-500" />
               <span className="text-sm text-gray-500">Уроки</span>
             </div>
-            <div className="text-3xl font-bold text-gray-800">{stats?.total_lessons_completed || 0}</div>
-            <div className="text-xs text-gray-400">всего пройдено</div>
+            <div className="text-3xl font-bold text-gray-900">{stats?.total_lessons_completed || 0}</div>
+            <div className="text-xs text-gray-400 mt-1">всего пройдено</div>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            transition={{ delay: 0.2 }}
+            className="card p-6"
           >
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-3 mb-2">
               <Target className="w-5 h-5 text-green-500" />
               <span className="text-sm text-gray-500">Слова</span>
             </div>
-            <div className="text-3xl font-bold text-gray-800">{activeWords}</div>
-            <div className="text-xs text-gray-400">в изучении</div>
+            <div className="text-3xl font-bold text-gray-900">{activeWords}</div>
+            <div className="text-xs text-gray-400 mt-1">в изучении</div>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            transition={{ delay: 0.25 }}
+            className="card p-6"
           >
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-3 mb-2">
               <TrendingUp className="w-5 h-5 text-purple-500" />
               <span className="text-sm text-gray-500">Изучено</span>
             </div>
-            <div className="text-3xl font-bold text-gray-800">{stats?.total_words_learned || 0}</div>
-            <div className="text-xs text-gray-400">всего слов</div>
+            <div className="text-3xl font-bold text-gray-900">{stats?.total_words_learned || 0}</div>
+            <div className="text-xs text-gray-400 mt-1">всего слов</div>
           </motion.div>
         </div>
 
         {/* Start Lesson Button */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mb-8"
         >
           <button
             onClick={handleStartLesson}
-            className="w-full py-5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-2xl font-bold text-xl shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="btn-primary w-full text-lg"
           >
-            🎯 Начать урок
+            Начать урок
           </button>
         </motion.div>
 
@@ -218,19 +193,19 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* Vocabulary link */}
+        {/* Vocabulary Link */}
         {userWords.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.55 }}
-            className="mt-6"
+            transition={{ delay: 0.35 }}
+            className="mb-8"
           >
             <button
               onClick={() => navigate('/vocabulary')}
-              className="w-full py-3 bg-white border-2 border-indigo-200 text-indigo-600 rounded-xl font-semibold hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
+              className="btn-secondary w-full"
             >
-              📖 Мой словарь ({userWords.length} слов)
+              Мой словарь ({userWords.length})
             </button>
           </motion.div>
         )}
@@ -238,22 +213,21 @@ export default function Dashboard() {
         {/* Recent Words */}
         {userWords.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="mt-8"
+            transition={{ delay: 0.4 }}
           >
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Последние слова</h3>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Последние слова</h2>
             <div className="flex flex-wrap gap-2">
               {userWords.slice(-10).reverse().map((uw: any) => {
                 const dict = getDictionary(profile?.targetLang || 'en').find(d => d.id === uw.dictionary_id);
                 return dict ? (
                   <div
                     key={uw.id}
-                    className="px-3 py-1.5 bg-white rounded-lg border border-gray-200 text-sm"
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm"
                   >
-                    <span className="font-medium text-gray-800">{dict.lemma}</span>
-                    <span className="text-gray-400 ml-1">• ст.{uw.stage}</span>
+                    <span className="font-medium text-gray-900">{dict.lemma}</span>
+                    <span className="text-gray-400 ml-2">• ст.{uw.stage}</span>
                   </div>
                 ) : null;
               })}

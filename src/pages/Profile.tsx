@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Save, User, BookOpen, Target, Calendar } from 'lucide-react';
+import { ArrowLeft, Save, Target, BookOpen, Calendar, Award } from 'lucide-react';
 import { getProfile, saveProfile, getUser } from '../store';
 import { getProfile as getProfileFromAPI, updateProfile, getMaxLessons } from '../services/api';
 import { CEFRLevel } from '../types';
@@ -20,7 +20,6 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
-  // Form state
   const [cefrLevel, setCefrLevel] = useState<CEFRLevel>('A1');
   const [wordsPerLesson, setWordsPerLesson] = useState(5);
   const [dailyLessons, setDailyLessons] = useState(3);
@@ -35,16 +34,7 @@ export default function Profile() {
     setLoading(true);
     const profile = getProfile();
     
-    // Load system max lessons from config
-    try {
-      const config = await getMaxLessons();
-      setSystemMaxLessons(config.max_lessons);
-    } catch (err) {
-      console.error('Failed to load max lessons config:', err);
-    }
-    
     if (profile) {
-      // Load fresh data from API
       try {
         const freshProfile = await getProfileFromAPI(profile.id);
         setCefrLevel(freshProfile.cefr_level as CEFRLevel);
@@ -53,12 +43,18 @@ export default function Profile() {
         setTargetLang(freshProfile.target_lang);
       } catch (err) {
         console.error('Failed to load profile:', err);
-        // Use cached data as fallback
         setCefrLevel(profile.cefrLevel);
         setWordsPerLesson(profile.wordsPerLessonLimit);
         setDailyLessons(profile.dailyLessonLimit);
         setTargetLang(profile.targetLang);
       }
+    }
+    
+    try {
+      const config = await getMaxLessons();
+      setSystemMaxLessons(config.max_lessons);
+    } catch (err) {
+      console.error('Failed to load max lessons config:', err);
     }
     
     setLoading(false);
@@ -81,7 +77,6 @@ export default function Profile() {
         daily_lesson_limit: dailyLessons,
       });
 
-      // Update local storage
       saveProfile({
         ...profile,
         cefrLevel: updatedProfile.cefr_level as CEFRLevel,
@@ -89,9 +84,7 @@ export default function Profile() {
         dailyLessonLimit: updatedProfile.daily_lesson_limit,
       });
 
-      setMessage({ type: 'success', text: 'Настройки сохранены!' });
-      
-      // Clear message after 3 seconds
+      setMessage({ type: 'success', text: 'Настройки сохранены' });
       setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       console.error('Failed to save profile:', err);
@@ -104,63 +97,43 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Загрузка...</p>
-        </div>
+        <div className="text-gray-400">Загрузка...</div>
       </div>
     );
   }
 
-  const langNames: Record<string, string> = {
-    en: 'English',
-    de: 'Deutsch',
-    es: 'Español',
-    fr: 'Français',
-  };
-
-  const langFlags: Record<string, string> = {
-    en: '🇬🇧',
-    de: '🇩🇪',
-    es: '🇪🇸',
-    fr: '🇫🇷',
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen">
+      <div className="max-w-2xl mx-auto px-6 py-12">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 mb-8 pt-4"
+          className="flex items-center gap-3 mb-8"
         >
           <button
             onClick={() => navigate('/dashboard')}
-            className="p-2 rounded-lg hover:bg-white/50 transition-colors"
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-2xl font-bold text-gray-800">Профиль</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Профиль</h1>
         </motion.div>
 
-        {/* User Info Card */}
+        {/* User Info */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6"
+          className="card p-6 mb-8"
         >
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+            <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center text-white text-2xl font-bold">
               {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-800">{user?.name || 'Пользователь'}</h2>
-              <p className="text-gray-500 flex items-center gap-2">
-                <span>{langFlags[targetLang]}</span>
-                <span>{langNames[targetLang]}</span>
-              </p>
+              <h2 className="text-xl font-bold text-gray-900">{user?.name || 'Пользователь'}</h2>
+              <p className="text-gray-500">{targetLang.toUpperCase()}</p>
             </div>
           </div>
         </motion.div>
@@ -182,27 +155,27 @@ export default function Profile() {
 
         {/* CEFR Level */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6"
+          className="card p-6 mb-6"
         >
           <div className="flex items-center gap-2 mb-4">
-            <Target className="w-5 h-5 text-indigo-500" />
-            <h3 className="text-lg font-semibold text-gray-800">Уровень языка</h3>
+            <Target className="w-5 h-5 text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900">Уровень языка</h3>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {levels.map(level => (
               <button
                 key={level.code}
                 onClick={() => setCefrLevel(level.code)}
                 className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
                   cefrLevel === level.code
-                    ? 'border-indigo-500 bg-indigo-50 shadow-md'
+                    ? 'border-gray-900 bg-gray-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="font-semibold text-gray-800">{level.name}</div>
+                <div className="font-semibold text-gray-900">{level.name}</div>
                 <div className="text-sm text-gray-500">{level.desc}</div>
               </button>
             ))}
@@ -211,14 +184,14 @@ export default function Profile() {
 
         {/* Words per Lesson */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6"
+          className="card p-6 mb-6"
         >
           <div className="flex items-center gap-2 mb-4">
-            <BookOpen className="w-5 h-5 text-indigo-500" />
-            <h3 className="text-lg font-semibold text-gray-800">Слов в уроке</h3>
+            <BookOpen className="w-5 h-5 text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900">Слов в уроке</h3>
           </div>
           <div className="space-y-4">
             <input
@@ -227,29 +200,26 @@ export default function Profile() {
               max="20"
               value={wordsPerLesson}
               onChange={(e) => setWordsPerLesson(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-900"
             />
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">1 слово</span>
-              <span className="text-2xl font-bold text-indigo-600">{wordsPerLesson}</span>
-              <span className="text-sm text-gray-500">20 слов</span>
+              <span className="text-sm text-gray-500">1</span>
+              <span className="text-2xl font-bold text-gray-900">{wordsPerLesson}</span>
+              <span className="text-sm text-gray-500">20</span>
             </div>
-            <p className="text-sm text-gray-500 text-center">
-              Рекомендуется: 5-7 слов для оптимального запоминания
-            </p>
           </div>
         </motion.div>
 
         {/* Daily Lessons */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6"
+          className="card p-6 mb-6"
         >
           <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-5 h-5 text-indigo-500" />
-            <h3 className="text-lg font-semibold text-gray-800">Уроков в день</h3>
+            <Calendar className="w-5 h-5 text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900">Уроков в день</h3>
           </div>
           <div className="space-y-4">
             <input
@@ -258,55 +228,29 @@ export default function Profile() {
               max={systemMaxLessons}
               value={dailyLessons}
               onChange={(e) => setDailyLessons(Number(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-900"
             />
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">1 урок</span>
-              <span className="text-2xl font-bold text-indigo-600">{dailyLessons}</span>
-              <span className="text-sm text-gray-500">{systemMaxLessons} уроков</span>
+              <span className="text-sm text-gray-500">1</span>
+              <span className="text-2xl font-bold text-gray-900">{dailyLessons}</span>
+              <span className="text-sm text-gray-500">{systemMaxLessons}</span>
             </div>
-            <p className="text-sm text-gray-500 text-center">
-              Рекомендуется: 2-3 урока в день для устойчивого прогресса
-            </p>
           </div>
         </motion.div>
 
         {/* Save Button */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="btn-primary w-full"
           >
-            {saving ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                Сохранение...
-              </>
-            ) : (
-              <>
-                <Save className="w-5 h-5" />
-                Сохранить настройки
-              </>
-            )}
+            {saving ? 'Сохранение...' : 'Сохранить'}
           </button>
-        </motion.div>
-
-        {/* Info */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700"
-        >
-          <p className="font-semibold mb-1">💡 Подсказка</p>
-          <p>
-            Изменения вступят в силу со следующего урока. Текущий урок будет завершён с текущими настройками.
-          </p>
         </motion.div>
       </div>
     </div>

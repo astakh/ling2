@@ -26,20 +26,12 @@ export default function Lesson() {
   const [newWords, setNewWords] = useState<Array<{id: string, lemma: string, pos: string, translations: string[]}>>([]);
   const [removedNewWords, setRemovedNewWords] = useState<Set<string>>(new Set());
 
-  // Initialize lesson
   useEffect(() => {
-    console.log('[Lesson] Component mounted');
-    console.log('[Lesson] User:', user);
-    console.log('[Lesson] Profile:', profile);
-    
-    // Получаем данные урока из sessionStorage (установлены в Dashboard)
     const lessonData = sessionStorage.getItem('currentLesson');
     if (lessonData) {
-      console.log('[Lesson] Loading lesson from sessionStorage');
       const session = JSON.parse(lessonData);
       setupLesson(session);
     } else {
-      console.error('[Lesson] No lesson data in sessionStorage, navigating to dashboard');
       navigate('/dashboard');
     }
   }, []);
@@ -47,34 +39,26 @@ export default function Lesson() {
   const [todayWords, setTodayWords] = useState<DictionaryWord[]>([]);
 
   const setupLesson = (session: any) => {
-    console.log('[Lesson] Setting up lesson state');
     setLesson(session.lesson);
     setExercises(session.exercises);
     setExerciseIndex(session.currentExerciseIndex);
-    setTodayWords(session.todayWords); // Save today's words from API
+    setTodayWords(session.todayWords);
     
-    // Show new words if this is a new lesson (not resumed)
     if (session.newWords && session.newWords.length > 0 && !session.resumed) {
-      console.log('[Lesson] New words to show:', session.newWords);
       setNewWords(session.newWords);
       setShowNewWords(true);
     } else {
       setInitialized(true);
     }
-    
-    console.log('[Lesson] Lesson initialized successfully, todayWords:', session.todayWords.length);
   };
 
-  // Update target words when exercise changes
   useEffect(() => {
     if (exercises.length > 0 && exerciseIndex >= 0 && exerciseIndex < exercises.length) {
       const exercise = exercises[exerciseIndex];
       if (exercise && todayWords.length > 0) {
-        // Use todayWords from API instead of local dictionary
         const words = exercise.targetWordIds
           .map((id: string) => todayWords.find(d => d.id === id))
           .filter((w: DictionaryWord | undefined): w is DictionaryWord => w !== undefined);
-        console.log('[Lesson] Target words for exercise:', words.length, words.map(w => w.lemma));
         setTargetWords(words);
       }
     }
@@ -86,15 +70,12 @@ export default function Lesson() {
     if (!translation.trim() || !currentExercise || !profile || !user || !lesson) return;
     
     setLoading(true);
-    
-    // Submit translation via API
     const result = await submitExerciseTranslation(currentExercise.id, translation);
     
     if (result) {
       setCurrentResult(result);
       setShowResult(true);
       
-      // Update exercise locally
       const updatedExercise: LessonExercise = {
         ...currentExercise,
         userTranslation: translation,
@@ -114,22 +95,15 @@ export default function Lesson() {
     setShowResult(false);
     setTranslation('');
     setCurrentResult(null);
-    setIgnoredWords(new Set()); // Reset ignored words for next exercise
-    setAddedWords(new Set()); // Reset added words for next exercise
+    setIgnoredWords(new Set());
+    setAddedWords(new Set());
     
     const nextIndex = exerciseIndex + 1;
     if (nextIndex >= exercises.length) {
-      // All exercises done - complete the lesson
-      console.log('[Lesson] All exercises done, completing lesson...');
       if (lesson) {
-        const result = await completeLesson(lesson.id);
-        console.log('[Lesson] Lesson completed:', result);
+        await completeLesson(lesson.id);
       }
-      
-      // Очищаем sessionStorage после завершения урока
-      console.log('[Lesson] Clearing sessionStorage');
       sessionStorage.removeItem('currentLesson');
-      
       navigate('/complete');
     } else {
       setExerciseIndex(nextIndex);
@@ -139,66 +113,49 @@ export default function Lesson() {
   const handleMarkAsLearned = async (dictionaryId: string) => {
     if (!profile) return;
     
-    console.log('[Lesson] Marking word as learned:', dictionaryId);
-    
     try {
       await markWordLearned(profile.id, dictionaryId);
-      console.log('[Lesson] Word marked as learned successfully');
-      
-      // Update local state
       setIgnoredWords(prev => new Set([...prev, dictionaryId]));
     } catch (error) {
-      console.error('[Lesson] Failed to mark word as learned:', error);
+      console.error('Failed to mark word as learned:', error);
     }
   };
 
   const handleAddWord = async (dictionaryId: string) => {
     if (!profile) return;
     
-    console.log('[Lesson] Adding word to dictionary:', dictionaryId);
-    
     try {
       await addWord(profile.id, dictionaryId, 'active');
-      console.log('[Lesson] Word added successfully');
-      
-      // Update local state
       setAddedWords(prev => new Set([...prev, dictionaryId]));
     } catch (error) {
-      console.error('[Lesson] Failed to add word:', error);
+      console.error('Failed to add word:', error);
     }
   };
 
   const handleRemoveNewWord = async (dictionaryId: string) => {
     if (!profile) return;
     
-    console.log('[Lesson] Removing new word and marking as learned:', dictionaryId);
-    
     try {
       await markWordLearned(profile.id, dictionaryId);
-      console.log('[Lesson] Word marked as learned successfully');
-      
-      // Update local state
       setRemovedNewWords(prev => new Set([...prev, dictionaryId]));
     } catch (error) {
-      console.error('[Lesson] Failed to remove word:', error);
+      console.error('Failed to remove word:', error);
     }
   };
 
-  // Show new words screen before starting the lesson
   if (showNewWords) {
     return (
-      <div className="min-h-screen p-4 flex flex-col">
-        <div className="max-w-lg mx-auto w-full">
+      <div className="min-h-screen">
+        <div className="max-w-2xl mx-auto px-6 py-12">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+            className="space-y-8"
           >
-            <div className="text-center space-y-2 mb-8">
-              <div className="text-6xl">📚</div>
-              <h1 className="text-2xl font-bold text-gray-800">Новые слова для изучения</h1>
+            <div className="text-center space-y-2">
+              <h1 className="text-3xl font-bold text-gray-900">Новые слова</h1>
               <p className="text-gray-500">Запомни эти слова перед началом урока</p>
-              <p className="text-sm text-gray-400">💡 Можешь пометить слово как выученное, если уже знаешь его</p>
+              <p className="text-sm text-gray-400">Можешь пометить слово как выученное, если уже знаешь его</p>
             </div>
 
             <div className="space-y-3">
@@ -207,24 +164,20 @@ export default function Lesson() {
                 return (
                   <motion.div
                     key={word.id}
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: isRemoved ? 0.5 : 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className={`bg-white rounded-2xl p-5 shadow-sm border ${
-                      isRemoved ? 'border-gray-300 bg-gray-50' : 'border-gray-100'
-                    }`}
+                    transition={{ delay: index * 0.05 }}
+                    className={`card p-5 ${isRemoved ? 'opacity-50' : ''}`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className={`text-2xl font-bold mb-2 ${
-                          isRemoved ? 'text-gray-400 line-through' : 'text-indigo-800'
-                        }`}>
+                        <div className={`text-2xl font-bold mb-1 ${isRemoved ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                           {word.lemma}
                         </div>
                         <div className="text-sm text-gray-500 mb-2">
                           {word.pos}
                         </div>
-                        <div className={`text-lg ${isRemoved ? 'text-gray-400' : 'text-gray-700'}`}>
+                        <div className={`text-base ${isRemoved ? 'text-gray-400' : 'text-gray-700'}`}>
                           {word.translations.join(', ')}
                         </div>
                         {isRemoved && (
@@ -234,20 +187,14 @@ export default function Lesson() {
                           </div>
                         )}
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <div className="text-4xl opacity-20">
-                          {index + 1}
-                        </div>
-                        {!isRemoved && (
-                          <button
-                            onClick={() => handleRemoveNewWord(word.id)}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Пометить как выученное и удалить из списка"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        )}
-                      </div>
+                      {!isRemoved && (
+                        <button
+                          onClick={() => handleRemoveNewWord(word.id)}
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -265,11 +212,11 @@ export default function Lesson() {
                 setShowNewWords(false);
                 setInitialized(true);
               }}
-              className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+              className="btn-primary w-full text-lg"
             >
               {removedNewWords.size > 0 
-                ? `Начать урок → (${newWords.length - removedNewWords.size} слов для изучения)`
-                : 'Начать урок →'
+                ? `Начать урок (${newWords.length - removedNewWords.size} слов)`
+                : 'Начать урок'
               }
             </button>
           </motion.div>
@@ -281,57 +228,52 @@ export default function Lesson() {
   if (!initialized || !currentExercise || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto" />
-          <p className="text-gray-500">Загрузка урока...</p>
-        </div>
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   const progress = ((exerciseIndex) / exercises.length) * 100;
-  const nextProgress = ((exerciseIndex + 1) / exercises.length) * 100;
 
   return (
-    <div className="min-h-screen p-4 flex flex-col">
-      {/* Header */}
-      <div className="max-w-lg mx-auto w-full">
-        <div className="flex items-center justify-between mb-4">
+    <div className="min-h-screen">
+      <div className="max-w-2xl mx-auto px-6 py-12">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
           <button
             onClick={() => {
-              if (confirm('Выйти из урока? Прогресс будет сохранён.')) {
-                // Не очищаем sessionStorage, чтобы можно было вернуться к уроку
+              if (confirm('Выйти из урока?')) {
                 navigate('/dashboard');
               }
             }}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="text-sm text-gray-500 font-medium">
+          <div className="text-sm text-gray-500">
             {exerciseIndex + 1} / {exercises.length}
           </div>
           <div className="w-9" />
         </div>
 
-        {/* Progress bar */}
-        <div className="h-2.5 bg-gray-200 rounded-full mb-8 overflow-hidden">
+        {/* Progress */}
+        <div className="h-1.5 bg-gray-200 rounded-full mb-12 overflow-hidden">
           <motion.div
-            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+            className="h-full bg-gray-900 rounded-full"
             initial={{ width: `${progress}%` }}
-            animate={{ width: showResult ? `${nextProgress}%` : `${progress}%` }}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
+            animate={{ width: showResult ? `${((exerciseIndex + 1) / exercises.length) * 100}%` : `${progress}%` }}
+            transition={{ duration: 0.3 }}
           />
         </div>
 
-        {/* Target words hint */}
+        {/* Target Words */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mb-6"
+          className="mb-8"
         >
-          <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider font-medium">
-            🎯 Переведи эти слова:
+          <div className="text-xs text-gray-400 mb-3 uppercase tracking-wider font-medium">
+            Переведи эти слова
           </div>
           <div className="flex flex-wrap gap-2">
             {targetWords.map(word => {
@@ -339,22 +281,19 @@ export default function Lesson() {
               return (
                 <div
                   key={word.id}
-                  className={`relative px-3 py-2 rounded-xl shadow-sm transition-all ${
+                  className={`relative px-4 py-2 rounded-lg border ${
                     isIgnored 
-                      ? 'bg-gray-100 border border-gray-200 opacity-50' 
-                      : 'bg-white border border-indigo-200'
+                      ? 'bg-gray-100 border-gray-200 opacity-50' 
+                      : 'bg-white border-gray-200'
                   }`}
                 >
-                  <div className={`font-semibold ${isIgnored ? 'text-gray-400 line-through' : 'text-indigo-800'}`}>
+                  <div className={`font-medium ${isIgnored ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                     {word.lemma}
                   </div>
                   {!isIgnored && (
                     <button
-                      onClick={() => {
-                        handleMarkAsLearned(word.id);
-                      }}
-                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-sm"
-                      title="Пометить как выученное"
+                      onClick={() => handleMarkAsLearned(word.id)}
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -365,100 +304,89 @@ export default function Lesson() {
           </div>
         </motion.div>
 
-        {/* Main content */}
+        {/* Main Content */}
         <AnimatePresence mode="wait">
           {!showResult ? (
             <motion.div
               key="input"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              {/* Sentence card */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500" />
-                <div className="text-xs text-gray-400 mb-3 uppercase tracking-wider font-medium">
-                  📝 Переведи предложение
+              <div className="card p-8">
+                <div className="text-xs text-gray-400 mb-4 uppercase tracking-wider font-medium">
+                  Предложение
                 </div>
-                <p className="text-xl font-medium text-gray-800 leading-relaxed">
+                <p className="text-xl text-gray-900 leading-relaxed">
                   {currentExercise.targetSentence}
                 </p>
               </div>
 
-              {/* Translation input */}
-              <div>
-                <textarea
-                  value={translation}
-                  onChange={(e) => setTranslation(e.target.value)}
-                  placeholder="Введи перевод на русский..."
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:outline-none transition-colors text-lg resize-none h-28"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleCheck();
-                    }
-                  }}
-                  autoFocus
-                />
-              </div>
+              <textarea
+                value={translation}
+                onChange={(e) => setTranslation(e.target.value)}
+                placeholder="Введи перевод..."
+                className="input h-32 resize-none"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleCheck();
+                  }
+                }}
+                autoFocus
+              />
 
               <button
                 onClick={handleCheck}
                 disabled={!translation.trim() || loading}
-                className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98]"
+                className="btn-primary w-full"
               >
                 {loading ? (
-                  <>
+                  <div className="flex items-center justify-center gap-2">
                     <Loader2 className="w-5 h-5 animate-spin" />
                     Проверяю...
-                  </>
+                  </div>
                 ) : (
-                  <>
+                  <div className="flex items-center justify-center gap-2">
                     <Check className="w-5 h-5" />
                     Проверить
-                  </>
+                  </div>
                 )}
               </button>
             </motion.div>
           ) : (
             <motion.div
               key="result"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              {/* Result card */}
-              <div className={`rounded-2xl p-6 border-2 ${
+              <div className={`card p-6 border-2 ${
                 currentResult?.overall_correct 
                   ? 'bg-green-50 border-green-200' 
                   : 'bg-orange-50 border-orange-200'
               }`}>
-                <div className="text-xl font-bold mb-4 flex items-center gap-2">
-                  {currentResult?.overall_correct ? (
-                    <><span className="text-2xl">✅</span> Отлично!</>
-                  ) : (
-                    <><span className="text-2xl">⚠️</span> Есть что исправить</>
-                  )}
+                <div className="text-xl font-bold mb-4">
+                  {currentResult?.overall_correct ? 'Отлично!' : 'Есть ошибки'}
                 </div>
                 
                 <div className="space-y-3">
                   <div className="text-sm bg-white/60 rounded-lg p-3">
                     <span className="text-gray-400">Твой перевод:</span>{' '}
-                    <span className="font-medium text-gray-800">{translation}</span>
+                    <span className="font-medium text-gray-900">{translation}</span>
                   </div>
                   
                   {currentResult?.correct_translation && (
                     <div className="text-sm bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <span className="text-blue-600 font-medium">💡 Правильный перевод:</span>{' '}
-                      <span className="text-gray-800">{currentResult.correct_translation}</span>
+                      <span className="text-blue-600 font-medium">Правильный перевод:</span>{' '}
+                      <span className="text-gray-900">{currentResult.correct_translation}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Word results */}
-                <div className="space-y-2">
+                <div className="space-y-2 mt-4">
                   {currentResult?.word_results.map(wr => {
                     const word = targetWords.find(w => w.id === wr.word_id);
                     const translations = word?.translations[user?.nativeLang || 'ru'] || [];
@@ -468,7 +396,7 @@ export default function Lesson() {
                         key={wr.word_id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
                           wr.has_typo 
                             ? 'bg-yellow-100 border border-yellow-300'
                             : wr.is_correct 
@@ -480,7 +408,7 @@ export default function Lesson() {
                           {wr.has_typo ? '🟡' : wr.is_correct ? '🟢' : '🔴'}
                         </span>
                         <div className="flex-1">
-                          <span className="font-semibold text-gray-800">{wr.lemma}</span>
+                          <span className="font-semibold text-gray-900">{wr.lemma}</span>
                           <span className="text-gray-500 text-sm ml-2">
                             → {correctTranslation}
                           </span>
@@ -500,15 +428,14 @@ export default function Lesson() {
                   })}
                 </div>
 
-                {/* Suggested new words */}
                 {currentResult?.suggested_new_words && currentResult.suggested_new_words.length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-xl"
+                    className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg"
                   >
-                    <div className="text-sm font-semibold text-purple-800 mb-3">
-                      💡 Хотите добавить эти слова в словарь?
+                    <div className="text-sm font-semibold text-purple-900 mb-3">
+                      Добавить эти слова в словарь?
                     </div>
                     <div className="space-y-2">
                       {currentResult.suggested_new_words.map((word, index) => {
@@ -522,7 +449,7 @@ export default function Lesson() {
                             className="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-100"
                           >
                             <div className="flex-1">
-                              <span className="font-medium text-gray-800">{word.lemma}</span>
+                              <span className="font-medium text-gray-900">{word.lemma}</span>
                               <span className="text-gray-500 text-sm ml-2">→ {word.translation}</span>
                             </div>
                             <button
@@ -530,8 +457,8 @@ export default function Lesson() {
                               disabled={isAdded}
                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
                                 isAdded
-                                  ? 'bg-green-100 text-green-700 cursor-default'
-                                  : 'bg-purple-500 text-white hover:bg-purple-600'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-purple-600 text-white hover:bg-purple-700'
                               }`}
                             >
                               {isAdded ? (
@@ -556,9 +483,9 @@ export default function Lesson() {
 
               <button
                 onClick={handleNext}
-                className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+                className="btn-primary w-full"
               >
-                {exerciseIndex + 1 >= exercises.length ? '🎉 Завершить урок' : 'Далее →'}
+                {exerciseIndex + 1 >= exercises.length ? 'Завершить урок' : 'Далее'}
               </button>
             </motion.div>
           )}
