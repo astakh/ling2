@@ -290,6 +290,18 @@ class GigaChatService:
         logger.info(f"[GigaChat] Целевых слов: {len(target_words)}")
         logger.info(f"[GigaChat] Profile ID: {profile_id}")
         
+        # Получаем target_lang из профиля
+        target_lang = "en"  # дефолтное значение
+        if db and profile_id:
+            from models import UserLanguageProfile
+            profile_result = await db.execute(
+                select(UserLanguageProfile).where(UserLanguageProfile.id == profile_id)
+            )
+            profile = profile_result.scalar_one_or_none()
+            if profile:
+                target_lang = profile.target_lang
+                logger.info(f"[GigaChat] Target language from profile: {target_lang}")
+        
         # Получаем переводы слов из БД
         words_with_translations = []
         for word in target_words:
@@ -429,7 +441,7 @@ class GigaChatService:
                         dict_result = await db.execute(
                             select(Dictionary).where(
                                 Dictionary.lemma == lemma,
-                                Dictionary.target_lang == target_words[0]["target_lang"] if target_words else "en"
+                                Dictionary.target_lang == target_lang
                             )
                         )
                         dict_word = dict_result.scalar_one_or_none()
@@ -504,7 +516,7 @@ class GigaChatService:
                             dict_result = await db.execute(
                                 select(Dictionary).where(
                                     Dictionary.lemma == lemma,
-                                    Dictionary.target_lang == target_words[0]["target_lang"] if target_words else "en"
+                                    Dictionary.target_lang == target_lang
                                 )
                             )
                             dict_word = dict_result.scalar_one_or_none()
