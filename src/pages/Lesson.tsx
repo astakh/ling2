@@ -22,6 +22,8 @@ export default function Lesson() {
   const [ignoredWords, setIgnoredWords] = useState<Set<string>>(new Set());
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
   const [initialized, setInitialized] = useState(false);
+  const [showNewWords, setShowNewWords] = useState(false);
+  const [newWords, setNewWords] = useState<Array<{id: string, lemma: string, pos: string, translations: string[]}>>([]);
 
   // Initialize lesson
   useEffect(() => {
@@ -48,7 +50,16 @@ export default function Lesson() {
     setExercises(session.exercises);
     setExerciseIndex(session.currentExerciseIndex);
     setTodayWords(session.todayWords); // Save today's words from API
-    setInitialized(true);
+    
+    // Show new words if this is a new lesson (not resumed)
+    if (session.newWords && session.newWords.length > 0 && !session.resumed) {
+      console.log('[Lesson] New words to show:', session.newWords);
+      setNewWords(session.newWords);
+      setShowNewWords(true);
+    } else {
+      setInitialized(true);
+    }
+    
     console.log('[Lesson] Lesson initialized successfully, todayWords:', session.todayWords.length);
   };
 
@@ -149,6 +160,66 @@ export default function Lesson() {
       console.error('[Lesson] Failed to add word:', error);
     }
   };
+
+  // Show new words screen before starting the lesson
+  if (showNewWords) {
+    return (
+      <div className="min-h-screen p-4 flex flex-col">
+        <div className="max-w-lg mx-auto w-full">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="text-center space-y-2 mb-8">
+              <div className="text-6xl">📚</div>
+              <h1 className="text-2xl font-bold text-gray-800">Новые слова для изучения</h1>
+              <p className="text-gray-500">Запомни эти слова перед началом урока</p>
+            </div>
+
+            <div className="space-y-3">
+              {newWords.map((word, index) => (
+                <motion.div
+                  key={word.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="text-2xl font-bold text-indigo-800 mb-2">
+                        {word.lemma}
+                      </div>
+                      <div className="text-sm text-gray-500 mb-2">
+                        {word.pos}
+                      </div>
+                      <div className="text-lg text-gray-700">
+                        {word.translations.join(', ')}
+                      </div>
+                    </div>
+                    <div className="text-4xl opacity-20">
+                      {index + 1}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowNewWords(false);
+                setInitialized(true);
+              }}
+              className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+            >
+              Начать урок →
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   if (!initialized || !currentExercise || !profile) {
     return (

@@ -191,6 +191,12 @@ export async function startLesson(profileId: string, forceNew: boolean = false):
   lesson: Lesson;
   exercises: LessonExercise[];
   resumed: boolean;
+  new_words?: Array<{
+    id: string;
+    lemma: string;
+    pos: string;
+    translations: string[];
+  }>;
 }> {
   return request('/lesson/start', {
     method: 'POST',

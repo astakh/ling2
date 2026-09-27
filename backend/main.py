@@ -1062,7 +1062,45 @@ async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=404, detail="Profile not found")
     
     logger.info(f"[Lesson Start] Found profile: user_id={profile.user_id}, target_lang={profile.target_lang}")
-    return await LessonService.start_lesson(db, profile.user_id, req.profile_id, req.force_new)
+    lesson_data = await LessonService.start_lesson(db, profile.user_id, req.profile_id, req.force_new)
+    
+    # Get new words for this lesson
+    new_words = []
+    if lesson_data and not lesson_data.get("resumed"):
+        # Get all word IDs from exercises
+        all_word_ids = set()
+        for exercise in lesson_data.get("exercises", []):
+            all_word_ids.update(exercise.target_word_ids)
+        
+        # Get dictionary entries for these words
+        if all_word_ids:
+            result = await db.execute(
+                select(Dictionary).where(Dictionary.id.in_(list(all_word_ids)))
+            )
+            words = result.scalars().all()
+            
+            # Get translations for these words
+            for word in words:
+                result = await db.execute(
+                    select(DictionaryTranslation).where(
+                        DictionaryTranslation.dictionary_id == word.id,
+                        DictionaryTranslation.lang == profile.target_lang
+                    )
+                )
+                trans = result.scalar_one_or_none()
+                translations = trans.translations if trans and trans.translations else []
+                
+                new_words.append({
+                    "id": word.id,
+                    "lemma": word.lemma,
+                    "pos": word.pos,
+                    "translations": translations
+                })
+    
+    lesson_data["new_words"] = new_words
+    logger.info(f"[Lesson Start] Found {len(new_words)} new words for lesson")
+    
+    return lesson_data
 
 @app.post("/api/lesson/submit")
 async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = Depends(get_db)):

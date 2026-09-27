@@ -40,6 +40,13 @@ export interface LessonSession {
   currentExerciseIndex: number;
   todayWords: DictionaryWord[];
   wordGroups: DictionaryWord[][];
+  newWords?: Array<{
+    id: string;
+    lemma: string;
+    pos: string;
+    translations: string[];
+  }>;
+  resumed?: boolean;
 }
 
 // Start a new lesson via API
@@ -128,6 +135,8 @@ export async function startLesson(forceNew: boolean = false): Promise<LessonSess
     currentExerciseIndex: pendingIndex >= 0 ? pendingIndex : 0,
     todayWords,
     wordGroups,
+    newWords: response.new_words || [],
+    resumed: response.resumed || false,
   };
 }
 
