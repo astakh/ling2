@@ -141,6 +141,12 @@ class MockLLMService:
         from sqlalchemy import select
         from models import Dictionary, DictionaryTranslation, UserWord
         
+        logger.info(f"[MockLLM] === Начало оценки перевода ===")
+        logger.info(f"[MockLLM] Предложение: {sentence}")
+        logger.info(f"[MockLLM] Перевод пользователя: {user_translation}")
+        logger.info(f"[MockLLM] Целевых слов: {len(target_words)}")
+        logger.info(f"[MockLLM] Profile ID: {profile_id}")
+        
         word_results = []
         correct_translations = []
         suggested_new_words = []
@@ -148,6 +154,8 @@ class MockLLMService:
         for word in target_words:
             word_id = word["id"]
             lemma = word["lemma"]
+            
+            logger.info(f"[MockLLM] --- Проверка слова: {lemma} (ID: {word_id}) ---")
             
             # Получить переводы слова из БД
             translations = []
@@ -161,21 +169,31 @@ class MockLLMService:
                 trans_record = result.scalar_one_or_none()
                 if trans_record and trans_record.translations:
                     translations = trans_record.translations if isinstance(trans_record.translations, list) else [trans_record.translations]
+                    logger.info(f"[MockLLM] Найдены переводы в БД: {translations}")
+                else:
+                    logger.warning(f"[MockLLM] Переводы НЕ найдены в БД для слова {lemma}")
             
             # Если не нашли в БД, используем translations из word (если есть)
             if not translations:
                 translations = word.get("translations", [])
+                if translations:
+                    logger.info(f"[MockLLM] Используем переводы из target_words: {translations}")
+                else:
+                    logger.warning(f"[MockLLM] Нет переводов для слова {lemma}")
             
             # Проверяем, есть ли ПЕРЕВОД слова в ответе пользователя
             is_correct = False
             has_typo = False
             
             user_trans_lower = user_translation.lower()
+            logger.info(f"[MockLLM] Перевод пользователя (lower): '{user_trans_lower}'")
             
             for trans in translations:
                 trans_lower = trans.lower()
+                logger.info(f"[MockLLM] Проверяем перевод: '{trans_lower}'")
                 if trans_lower in user_trans_lower:
                     is_correct = True
+                    logger.info(f"[MockLLM] ✓ Слово '{lemma}' переведено ПРАВИЛЬНО (найдено '{trans}')")
                     break
                 # Проверка на опечатку (расстояние Левенштейна <= 2)
                 elif len(trans_lower) > 3:
@@ -183,7 +201,11 @@ class MockLLMService:
                     if any(word_part in user_trans_lower for word_part in [trans_lower[:3], trans_lower[-3:]]):
                         has_typo = True
                         is_correct = True
+                        logger.info(f"[MockLLM] ✓ Слово '{lemma}' переведено с ОПЕЧАТКОЙ (найдено похожее '{trans}')")
                         break
+            
+            if not is_correct:
+                logger.warning(f"[MockLLM] ✗ Слово '{lemma}' переведено НЕПРАВИЛЬНО")
             
             word_results.append({
                 "word_id": word_id,
@@ -197,25 +219,40 @@ class MockLLMService:
                 correct_translations.append(f"{lemma} = {translations[0]}")
             
             # Если слово переведено неправильно, предлагаем его для добавления
-            if not is_correct and db and profile_id:
-                # Проверяем, есть ли это слово уже в user_words
-                existing_result = await db.execute(
-                    select(UserWord).where(
-                        UserWord.user_language_profile_id == profile_id,
-                        UserWord.dictionary_id == word_id
+            if not is_correct:
+                logger.info(f"[MockLLM] Слово '{lemma}' переведено неправильно, проверяем возможность предложения...")
+                if db and profile_id:
+                    logger.info(f"[MockLLM] Проверяем наличие слова '{lemma}' в user_words пользователя...")
+                    # Проверяем, есть ли это слово уже в user_words
+                    existing_result = await db.execute(
+                        select(UserWord).where(
+                            UserWord.user_language_profile_id == profile_id,
+                            UserWord.dictionary_id == word_id
+                        )
                     )
-                )
-                existing_word = existing_result.scalar_one_or_none()
-                
-                # Если слова нет в user_words, предлагаем его добавить
-                if not existing_word:
-                    suggested_new_words.append(word_id)
-                    logger.info(f"[MockLLM] Suggesting new word: {lemma} ({word_id})")
+                    existing_word = existing_result.scalar_one_or_none()
+                    
+                    if existing_word:
+                        logger.info(f"[MockLLM] Слово '{lemma}' УЖЕ есть в user_words, не предлагаем")
+                    else:
+                        logger.info(f"[MockLLM] Слова '{lemma}' НЕТ в user_words, предлагаем добавить!")
+                        # Если слова нет в user_words, предлагаем его добавить
+                        suggested_new_words.append(word_id)
+                        logger.info(f"[MockLLM] ✓✓✓ Добавлено в suggested_new_words: {lemma} ({word_id})")
+                else:
+                    logger.warning(f"[MockLLM] Не могу проверить user_words: db={db is not None}, profile_id={profile_id}")
         
         overall_correct = all(w["is_correct"] for w in word_results)
         
         # Генерируем правильный перевод предложения
         correct_translation = f"{sentence} → {'; '.join(correct_translations)}"
+        
+        logger.info(f"[MockLLM] === Результат оценки ===")
+        logger.info(f"[MockLLM] Overall correct: {overall_correct}")
+        logger.info(f"[MockLLM] Suggested new words: {len(suggested_new_words)} слов")
+        if suggested_new_words:
+            logger.info(f"[MockLLM] IDs предложенных слов: {suggested_new_words}")
+        logger.info(f"[MockLLM] === Конец оценки перевода ===")
         
         return {
             "word_results": word_results,
@@ -404,6 +441,12 @@ class GigaChatService:
         from sqlalchemy import select
         from models import DictionaryTranslation, UserWord
         
+        logger.info(f"[GigaChat] === Начало оценки перевода ===")
+        logger.info(f"[GigaChat] Предложение: {sentence}")
+        logger.info(f"[GigaChat] Перевод пользователя: {user_translation}")
+        logger.info(f"[GigaChat] Целевых слов: {len(target_words)}")
+        logger.info(f"[GigaChat] Profile ID: {profile_id}")
+        
         # Получаем переводы слов из БД
         words_with_translations = []
         for word in target_words:
@@ -421,6 +464,9 @@ class GigaChatService:
                 trans_record = result.scalar_one_or_none()
                 if trans_record and trans_record.translations:
                     translations = trans_record.translations if isinstance(trans_record.translations, list) else [trans_record.translations]
+                    logger.info(f"[GigaChat] Найдены переводы для '{lemma}': {translations}")
+                else:
+                    logger.warning(f"[GigaChat] Переводы НЕ найдены в БД для '{lemma}'")
             
             words_with_translations.append({
                 **word,
@@ -494,14 +540,22 @@ class GigaChatService:
             # Попробовать распарсить JSON
             try:
                 result = json.loads(content)
-                logger.info(f"[GigaChat] Translation evaluated, overall_correct: {result.get('overall_correct')}")
+                logger.info(f"[GigaChat] === Результат от LLM ===")
+                logger.info(f"[GigaChat] Overall correct: {result.get('overall_correct')}")
+                logger.info(f"[GigaChat] Suggested new words от LLM: {result.get('suggested_new_words', [])}")
+                logger.info(f"[GigaChat] Word results:")
+                for wr in result.get('word_results', []):
+                    logger.info(f"[GigaChat]   - {wr.get('lemma')}: is_correct={wr.get('is_correct')}, has_typo={wr.get('has_typo')}")
                 
                 # Фильтруем suggested_new_words - проверяем, что слова есть в dictionaries и не добавлены в user_words
                 if db and profile_id and "suggested_new_words" in result:
                     suggested_ids = result["suggested_new_words"]
+                    logger.info(f"[GigaChat] Начинаю фильтрацию {len(suggested_ids)} предложенных слов...")
                     filtered_suggestions = []
                     
                     for word_id in suggested_ids:
+                        logger.info(f"[GigaChat] Проверяю слово ID: {word_id}")
+                        
                         # Проверяем, есть ли слово в dictionaries
                         dict_result = await db.execute(
                             select(Dictionary).where(Dictionary.id == word_id)
@@ -509,6 +563,8 @@ class GigaChatService:
                         dict_word = dict_result.scalar_one_or_none()
                         
                         if dict_word:
+                            logger.info(f"[GigaChat] ✓ Слово '{dict_word.lemma}' найдено в dictionaries")
+                            
                             # Проверяем, есть ли это слово уже в user_words
                             user_word_result = await db.execute(
                                 select(UserWord).where(
@@ -521,12 +577,21 @@ class GigaChatService:
                             # Если слова нет в user_words, предлагаем его добавить
                             if not user_word:
                                 filtered_suggestions.append(word_id)
-                                logger.info(f"[GigaChat] Suggesting new word: {dict_word.lemma} ({word_id})")
+                                logger.info(f"[GigaChat] ✓✓✓ Слова '{dict_word.lemma}' НЕТ в user_words, предлагаю добавить!")
+                            else:
+                                logger.info(f"[GigaChat] ✗ Слово '{dict_word.lemma}' УЖЕ есть в user_words, не предлагаю")
+                        else:
+                            logger.warning(f"[GigaChat] ✗ Слово ID {word_id} НЕ найдено в dictionaries")
                     
+                    logger.info(f"[GigaChat] После фильтрации: {len(filtered_suggestions)} слов для предложения")
                     result["suggested_new_words"] = filtered_suggestions
+                else:
+                    logger.warning(f"[GigaChat] Не могу фильтровать suggested_new_words: db={db is not None}, profile_id={profile_id}")
                 
+                logger.info(f"[GigaChat] === Конец оценки перевода ===")
                 return result
             except json.JSONDecodeError:
+                logger.error(f"[GigaChat] Ошибка парсинга JSON: {content}")
                 pass
             
             # Если не JSON, попробовать извлечь JSON из текста
@@ -535,20 +600,24 @@ class GigaChatService:
             if match:
                 try:
                     result = json.loads(match.group())
-                    logger.info(f"[GigaChat] Extracted JSON from text")
+                    logger.info(f"[GigaChat] Извлечён JSON из текста")
+                    logger.info(f"[GigaChat] Suggested new words от LLM: {result.get('suggested_new_words', [])}")
                     
                     # Фильтруем suggested_new_words
                     if db and profile_id and "suggested_new_words" in result:
                         suggested_ids = result["suggested_new_words"]
+                        logger.info(f"[GigaChat] Начинаю фильтрацию {len(suggested_ids)} предложенных слов...")
                         filtered_suggestions = []
                         
                         for word_id in suggested_ids:
+                            logger.info(f"[GigaChat] Проверяю слово ID: {word_id}")
                             dict_result = await db.execute(
                                 select(Dictionary).where(Dictionary.id == word_id)
                             )
                             dict_word = dict_result.scalar_one_or_none()
                             
                             if dict_word:
+                                logger.info(f"[GigaChat] ✓ Слово '{dict_word.lemma}' найдено в dictionaries")
                                 user_word_result = await db.execute(
                                     select(UserWord).where(
                                         UserWord.user_language_profile_id == profile_id,
@@ -559,16 +628,22 @@ class GigaChatService:
                                 
                                 if not user_word:
                                     filtered_suggestions.append(word_id)
-                                    logger.info(f"[GigaChat] Suggesting new word: {dict_word.lemma} ({word_id})")
+                                    logger.info(f"[GigaChat] ✓✓✓ Слова '{dict_word.lemma}' НЕТ в user_words, предлагаю добавить!")
+                                else:
+                                    logger.info(f"[GigaChat] ✗ Слово '{dict_word.lemma}' УЖЕ есть в user_words, не предлагаю")
+                            else:
+                                logger.warning(f"[GigaChat] ✗ Слово ID {word_id} НЕ найдено в dictionaries")
                         
+                        logger.info(f"[GigaChat] После фильтрации: {len(filtered_suggestions)} слов для предложения")
                         result["suggested_new_words"] = filtered_suggestions
                     
                     return result
                 except json.JSONDecodeError:
+                    logger.error(f"[GigaChat] Ошибка парсинга извлечённого JSON")
                     pass
             
             # Fallback: вернуть дефолтный ответ
-            logger.warning("[GigaChat] Could not parse JSON, returning default response")
+            logger.warning("[GigaChat] Не удалось распарсить JSON, возвращаю дефолтный ответ")
             return {
                 "word_results": [
                     {"word_id": w["id"], "lemma": w["lemma"], "is_correct": False, "has_typo": False}
@@ -1067,13 +1142,20 @@ async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_d
 
 @app.post("/api/lesson/submit")
 async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = Depends(get_db)):
+    logger.info(f"[SubmitTranslation] === Начало обработки перевода ===")
+    logger.info(f"[SubmitTranslation] Exercise ID: {req.exercise_id}")
+    logger.info(f"[SubmitTranslation] Перевод пользователя: {req.translation}")
+    
     # Get exercise
     result = await db.execute(
         select(LessonExercise).where(LessonExercise.id == req.exercise_id)
     )
     exercise = result.scalar_one_or_none()
     if not exercise:
+        logger.error(f"[SubmitTranslation] Exercise не найден: {req.exercise_id}")
         raise HTTPException(status_code=404, detail="Exercise not found")
+    
+    logger.info(f"[SubmitTranslation] Exercise найден, target_word_ids: {exercise.target_word_ids}")
     
     # Get target words
     target_word_ids = exercise.target_word_ids
@@ -1081,6 +1163,9 @@ async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = D
         select(Dictionary).where(Dictionary.id.in_(target_word_ids))
     )
     target_words = [{"id": w.id, "lemma": w.lemma, "pos": w.pos} for w in result.scalars().all()]
+    logger.info(f"[SubmitTranslation] Загружено {len(target_words)} целевых слов из dictionaries")
+    for tw in target_words:
+        logger.info(f"[SubmitTranslation]   - {tw['lemma']} (ID: {tw['id']}, POS: {tw['pos']})")
     
     # Get user's native lang
     lesson_result = await db.execute(select(Lesson).where(Lesson.id == exercise.lesson_id))
@@ -1088,7 +1173,12 @@ async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = D
     user_result = await db.execute(select(User).where(User.id == lesson.user_id))
     user = user_result.scalar_one()
     
+    logger.info(f"[SubmitTranslation] Lesson ID: {lesson.id}")
+    logger.info(f"[SubmitTranslation] User ID: {user.id}, Native lang: {user.native_lang}")
+    logger.info(f"[SubmitTranslation] Profile ID: {lesson.user_language_profile_id}")
+    
     # Evaluate via LLM
+    logger.info(f"[SubmitTranslation] Вызываю LLM для оценки перевода...")
     evaluation = await LLMService.evaluate_translation(
         exercise.target_sentence,
         req.translation,
@@ -1098,11 +1188,20 @@ async def submit_translation(req: SubmitTranslationRequest, db: AsyncSession = D
         profile_id=lesson.user_language_profile_id  # Передаём profile_id для проверки user_words
     )
     
+    logger.info(f"[SubmitTranslation] === Результат от LLM ===")
+    logger.info(f"[SubmitTranslation] Overall correct: {evaluation.get('overall_correct')}")
+    logger.info(f"[SubmitTranslation] Suggested new words: {evaluation.get('suggested_new_words', [])}")
+    logger.info(f"[SubmitTranslation] Word results:")
+    for wr in evaluation.get('word_results', []):
+        logger.info(f"[SubmitTranslation]   - {wr.get('lemma')}: is_correct={wr.get('is_correct')}, has_typo={wr.get('has_typo')}")
+    
     # Update exercise
     exercise.user_translation = req.translation
     exercise.llm_response_json = evaluation
     exercise.status = "completed"
     await db.flush()
+    
+    logger.info(f"[SubmitTranslation] === Конец обработки перевода ===")
     
     # Update word stages
     for wr in evaluation.get("word_results", []):
