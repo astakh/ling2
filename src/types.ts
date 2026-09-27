@@ -21,6 +21,7 @@ export interface UserLanguageProfile {
   currentLessonNumber: number;
   wordsPerLessonLimit: number;
   dailyLessonLimit: number;
+  maxLessons?: number;
   createdAt: string;
 }
 

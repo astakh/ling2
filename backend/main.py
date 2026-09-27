@@ -109,6 +109,7 @@ class ProfileResponse(BaseModel):
     current_lesson_number: int
     words_per_lesson_limit: int
     daily_lesson_limit: int
+    max_lessons: Optional[int] = None
 
 
 # ==================== GIGACHAT LLM ====================
@@ -981,6 +982,7 @@ class UpdateProfileRequest(BaseModel):
     cefr_level: Optional[str] = None
     words_per_lesson_limit: Optional[int] = None
     daily_lesson_limit: Optional[int] = None
+    max_lessons: Optional[int] = None
 
 @app.put("/api/profile/{profile_id}")
 async def update_profile(profile_id: str, req: UpdateProfileRequest, db: AsyncSession = Depends(get_db)):
@@ -1011,6 +1013,12 @@ async def update_profile(profile_id: str, req: UpdateProfileRequest, db: AsyncSe
             raise HTTPException(status_code=400, detail="Daily lesson limit must be between 1 and 10")
         profile.daily_lesson_limit = req.daily_lesson_limit
         logger.info(f"[Profile Update] Updated daily_lesson_limit to {req.daily_lesson_limit}")
+    
+    if req.max_lessons is not None:
+        if req.max_lessons < 1 or req.max_lessons > settings.MAX_LESSONS:
+            raise HTTPException(status_code=400, detail=f"Max lessons must be between 1 and {settings.MAX_LESSONS}")
+        profile.max_lessons = req.max_lessons
+        logger.info(f"[Profile Update] Updated max_lessons to {req.max_lessons}")
     
     await db.flush()
     return profile
@@ -1360,6 +1368,13 @@ async def health():
         "status": "ok", 
         "version": "1.0.0",
         "mode": "mock_llm" if settings.USE_MOCK_LLM else "real_llm"
+    }
+
+@app.get("/api/config/max-lessons")
+async def get_max_lessons():
+    """Получить максимальное количество уроков из конфигурации"""
+    return {
+        "max_lessons": settings.MAX_LESSONS
     }
 
 
