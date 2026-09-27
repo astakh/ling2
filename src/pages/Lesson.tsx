@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, Loader2, X, Plus, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Check, Loader2, X, Plus, CheckCircle, Trash2 } from 'lucide-react';
 import { getProfile, getUser } from '../store';
 import { startLesson, submitExerciseTranslation, completeLesson } from '../services/lessonService';
 import { DictionaryWord, LessonExercise } from '../types';
@@ -24,6 +24,7 @@ export default function Lesson() {
   const [initialized, setInitialized] = useState(false);
   const [showNewWords, setShowNewWords] = useState(false);
   const [newWords, setNewWords] = useState<Array<{id: string, lemma: string, pos: string, translations: string[]}>>([]);
+  const [removedNewWords, setRemovedNewWords] = useState<Set<string>>(new Set());
 
   // Initialize lesson
   useEffect(() => {
@@ -167,6 +168,22 @@ export default function Lesson() {
     }
   };
 
+  const handleRemoveNewWord = async (dictionaryId: string) => {
+    if (!profile) return;
+    
+    console.log('[Lesson] Removing new word and marking as learned:', dictionaryId);
+    
+    try {
+      await markWordLearned(profile.id, dictionaryId);
+      console.log('[Lesson] Word marked as learned successfully');
+      
+      // Update local state
+      setRemovedNewWords(prev => new Set([...prev, dictionaryId]));
+    } catch (error) {
+      console.error('[Lesson] Failed to remove word:', error);
+    }
+  };
+
   // Show new words screen before starting the lesson
   if (showNewWords) {
     return (
@@ -181,37 +198,68 @@ export default function Lesson() {
               <div className="text-6xl">📚</div>
               <h1 className="text-2xl font-bold text-gray-800">Новые слова для изучения</h1>
               <p className="text-gray-500">Запомни эти слова перед началом урока</p>
+              <p className="text-sm text-gray-400">💡 Можешь пометить слово как выученное, если уже знаешь его</p>
             </div>
 
             <div className="space-y-3">
-              {newWords.map((word, index) => (
-                <motion.div
-                  key={word.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="text-2xl font-bold text-indigo-800 mb-2">
-                        {word.lemma}
+              {newWords.map((word, index) => {
+                const isRemoved = removedNewWords.has(word.id);
+                return (
+                  <motion.div
+                    key={word.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: isRemoved ? 0.5 : 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className={`bg-white rounded-2xl p-5 shadow-sm border ${
+                      isRemoved ? 'border-gray-300 bg-gray-50' : 'border-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className={`text-2xl font-bold mb-2 ${
+                          isRemoved ? 'text-gray-400 line-through' : 'text-indigo-800'
+                        }`}>
+                          {word.lemma}
+                        </div>
+                        <div className="text-sm text-gray-500 mb-2">
+                          {word.pos}
+                        </div>
+                        <div className={`text-lg ${isRemoved ? 'text-gray-400' : 'text-gray-700'}`}>
+                          {word.translations.join(', ')}
+                        </div>
+                        {isRemoved && (
+                          <div className="text-sm text-green-600 mt-2 flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            Помечено как выученное
+                          </div>
+                        )}
                       </div>
-                      <div className="text-sm text-gray-500 mb-2">
-                        {word.pos}
-                      </div>
-                      <div className="text-lg text-gray-700">
-                        {word.translations.join(', ')}
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="text-4xl opacity-20">
+                          {index + 1}
+                        </div>
+                        {!isRemoved && (
+                          <button
+                            onClick={() => handleRemoveNewWord(word.id)}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Пометить как выученное и удалить из списка"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="text-4xl opacity-20">
-                      {index + 1}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
 
+            {removedNewWords.size > 0 && (
+              <div className="text-center text-sm text-gray-500">
+                Помечено как выученные: {removedNewWords.size} из {newWords.length}
+              </div>
+            )}
+            
             <button
               onClick={() => {
                 setShowNewWords(false);
@@ -219,7 +267,10 @@ export default function Lesson() {
               }}
               className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
             >
-              Начать урок →
+              {removedNewWords.size > 0 
+                ? `Начать урок → (${newWords.length - removedNewWords.size} слов для изучения)`
+                : 'Начать урок →'
+              }
             </button>
           </motion.div>
         </div>
