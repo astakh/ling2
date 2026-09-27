@@ -30,21 +30,22 @@ export default function Lesson() {
     console.log('[Lesson] Component mounted');
     console.log('[Lesson] User:', user);
     console.log('[Lesson] Profile:', profile);
-    loadLesson();
+    
+    // Получаем данные урока из sessionStorage (установлены в Dashboard)
+    const lessonData = sessionStorage.getItem('currentLesson');
+    if (lessonData) {
+      console.log('[Lesson] Loading lesson from sessionStorage');
+      const session = JSON.parse(lessonData);
+      setupLesson(session);
+    } else {
+      console.error('[Lesson] No lesson data in sessionStorage, navigating to dashboard');
+      navigate('/dashboard');
+    }
   }, []);
 
   const [todayWords, setTodayWords] = useState<DictionaryWord[]>([]);
 
-  const loadLesson = async () => {
-    console.log('[Lesson] Loading lesson...');
-    const session = await startLesson();
-    console.log('[Lesson] Session received:', session);
-    if (!session) {
-      console.error('[Lesson] No session, navigating to dashboard');
-      navigate('/dashboard');
-      return;
-    }
-    
+  const setupLesson = (session: any) => {
     console.log('[Lesson] Setting up lesson state');
     setLesson(session.lesson);
     setExercises(session.exercises);
@@ -123,6 +124,11 @@ export default function Lesson() {
         const result = await completeLesson(lesson.id);
         console.log('[Lesson] Lesson completed:', result);
       }
+      
+      // Очищаем sessionStorage после завершения урока
+      console.log('[Lesson] Clearing sessionStorage');
+      sessionStorage.removeItem('currentLesson');
+      
       navigate('/complete');
     } else {
       setExerciseIndex(nextIndex);
@@ -243,6 +249,7 @@ export default function Lesson() {
           <button
             onClick={() => {
               if (confirm('Выйти из урока? Прогресс будет сохранён.')) {
+                // Не очищаем sessionStorage, чтобы можно было вернуться к уроку
                 navigate('/dashboard');
               }
             }}

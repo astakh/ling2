@@ -59,6 +59,10 @@ export default function Dashboard() {
         return;
       }
       
+      // Сохраняем данные урока в sessionStorage для Lesson.tsx
+      console.log('[Dashboard] Saving lesson data to sessionStorage');
+      sessionStorage.setItem('currentLesson', JSON.stringify(session));
+      
       console.log('[Dashboard] Navigating to /lesson');
       navigate('/lesson');
     } catch (error: any) {
