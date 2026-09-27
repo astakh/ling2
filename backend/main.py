@@ -1070,6 +1070,12 @@ async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_d
     logger.info(f"[Lesson Start] Found profile: user_id={profile.user_id}, target_lang={profile.target_lang}")
     lesson_data = await LessonService.start_lesson(db, profile.user_id, req.profile_id, req.force_new)
     
+    # Get user to find native_lang
+    result = await db.execute(
+        select(User).where(User.id == profile.user_id)
+    )
+    user = result.scalar_one_or_none()
+    
     # Get new words for this lesson
     new_words = []
     if lesson_data and not lesson_data.get("resumed"):
@@ -1085,12 +1091,12 @@ async def start_lesson(req: StartLessonRequest, db: AsyncSession = Depends(get_d
             )
             words = result.scalars().all()
             
-            # Get translations for these words
+            # Get translations for these words (in user's native language)
             for word in words:
                 result = await db.execute(
                     select(DictionaryTranslation).where(
                         DictionaryTranslation.dictionary_id == word.id,
-                        DictionaryTranslation.lang == profile.target_lang
+                        DictionaryTranslation.lang == user.native_lang
                     )
                 )
                 trans = result.scalar_one_or_none()
