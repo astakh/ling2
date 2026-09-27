@@ -10,37 +10,19 @@
 
 ### Как работает
 
-#### Backend (MockLLMService и GigaChatService)
+#### Backend (GigaChatService)
 
 1. **Определение неправильно переведённых слов**
-   - При проверке перевода система анализирует каждое целевое слово
-   - Если слово переведено неправильно (`is_correct: false`), оно добавляется в список `suggested_new_words`
+   - При проверке перевода GigaChat анализирует каждое целевое слово
+   - Если слово переведено неправильно (`is_correct: false`), LLM добавляет его в список `suggested_new_words`
 
 2. **Фильтрация предложенных слов**
    - Проверяется, что слово существует в таблице `dictionaries`
    - Проверяется, что слово ещё не добавлено в `user_words` пользователя
    - Только слова, прошедшие обе проверки, предлагаются пользователю
 
-3. **MockLLMService** (строки 150-230)
-   ```python
-   # Если слово переведено неправильно, предлагаем его для добавления
-   if not is_correct and db and profile_id:
-       # Проверяем, есть ли это слово уже в user_words
-       existing_result = await db.execute(
-           select(UserWord).where(
-               UserWord.user_language_profile_id == profile_id,
-               UserWord.dictionary_id == word_id
-           )
-       )
-       existing_word = existing_result.scalar_one_or_none()
-       
-       # Если слова нет в user_words, предлагаем его добавить
-       if not existing_word:
-           suggested_new_words.append(word_id)
-   ```
-
-4. **GigaChatService** (строки 390-560)
-   - Обновлён промпт для LLM:
+3. **GigaChatService**
+   - Промпт для LLM включает инструкцию:
      ```
      6. В поле suggested_new_words верни word_id слов, которые пользователь перевёл НЕПРАВИЛЬНО (is_correct: false)
      ```
@@ -239,7 +221,6 @@ let currentLimit = 50;
 ### Предложение новых слов
 
 ```
-[MockLLM] Suggesting new word: run (abc123-def456-...)
 [GigaChat] Suggesting new word: run (abc123-def456-...)
 ```
 

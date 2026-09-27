@@ -25,9 +25,6 @@ class Settings(BaseSettings):
     GIGACHAT_API_URL: str = "https://api.giga.chat/v1"
     GIGACHAT_SCOPE: str = "GIGACHAT_API_PERS"  # GIGACHAT_API_PERS, GIGACHAT_API_B2B, GIGACHAT_API_CORP
     
-    # Режим работы
-    USE_MOCK_LLM: bool = True  # True = использовать моковый LLM без API ключа
-    
     # Admin panel
     ADMIN_PASSWORD: str = "admin123"  # Пароль для доступа к админке
 
@@ -43,16 +40,13 @@ print("=" * 70)
 print("Configuration loaded:")
 print(f"  GIGACHAT_CREDENTIALS: {'[SET]' if settings.GIGACHAT_CREDENTIALS and settings.GIGACHAT_CREDENTIALS != 'your-gigachat-credentials-here' else '[NOT SET]'}")
 print(f"  GIGACHAT_MODEL: {settings.GIGACHAT_MODEL}")
-print(f"  USE_MOCK_LLM (before): {settings.USE_MOCK_LLM}")
 print("=" * 70)
 
-# Автоматически включить моковый LLM если нет credentials
+# Проверяем наличие credentials
 if not settings.GIGACHAT_CREDENTIALS or settings.GIGACHAT_CREDENTIALS == "your-gigachat-credentials-here":
-    settings.USE_MOCK_LLM = True
-    print("⚠️  GIGACHAT_CREDENTIALS not set or equals default value - using Mock LLM")
+    print("⚠️  WARNING: GIGACHAT_CREDENTIALS not set or equals default value")
+    print("⚠️  Please set GIGACHAT_CREDENTIALS in backend/.env")
 else:
-    settings.USE_MOCK_LLM = False
     print("✅ GIGACHAT_CREDENTIALS is set - using GigaChat API")
 
-print(f"  USE_MOCK_LLM (after): {settings.USE_MOCK_LLM}")
 print("=" * 70)

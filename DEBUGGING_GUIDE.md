@@ -43,52 +43,7 @@
 [SubmitTranslation] === Конец обработки перевода ===
 ```
 
-### 2. MockLLM (локальная оценка)
-
-**Префикс:** `[MockLLM]`
-
-**Что логируется:**
-- Начало оценки перевода
-- Проверка каждого слова:
-  - Поиск переводов в БД
-  - Сравнение с переводом пользователя
-  - Определение правильности (is_correct, has_typo)
-  - Проверка наличия слова в `user_words`
-  - Решение о предложении слова
-- Результат оценки
-
-**Пример логов:**
-```
-[MockLLM] === Начало оценки перевода ===
-[MockLLM] Предложение: The quick dog runs
-[MockLLM] Перевод пользователя: быстрый собака
-[MockLLM] Целевых слов: 3
-[MockLLM] Profile ID: profile-012
-[MockLLM] --- Проверка слова: quick (ID: word-1) ---
-[MockLLM] Найдены переводы в БД: ['быстрый', 'скорый']
-[MockLLM] Перевод пользователя (lower): 'быстрый собака'
-[MockLLM] Проверяем перевод: 'быстрый'
-[MockLLM] ✓ Слово 'quick' переведено ПРАВИЛЬНО (найдено 'быстрый')
-[MockLLM] --- Проверка слова: dog (ID: word-2) ---
-[MockLLM] Найдены переводы в БД: ['собака', 'пёс']
-[MockLLM] Проверяем перевод: 'собака'
-[MockLLM] ✓ Слово 'dog' переведено ПРАВИЛЬНО (найдено 'собака')
-[MockLLM] --- Проверка слова: run (ID: word-3) ---
-[MockLLM] Найдены переводы в БД: ['бежать', 'бегать']
-[MockLLM] Проверяем перевод: 'бежать'
-[MockLLM] ✗ Слово 'run' переведено НЕПРАВИЛЬНО
-[MockLLM] Слово 'run' переведено неправильно, проверяем возможность предложения...
-[MockLLM] Проверяем наличие слова 'run' в user_words пользователя...
-[MockLLM] Слова 'run' НЕТ в user_words, предлагаем добавить!
-[MockLLM] ✓✓✓ Добавлено в suggested_new_words: run (word-3)
-[MockLLM] === Результат оценки ===
-[MockLLM] Overall correct: False
-[MockLLM] Suggested new words: 1 слов
-[MockLLM] IDs предложенных слов: ['word-3']
-[MockLLM] === Конец оценки перевода ===
-```
-
-### 3. GigaChat (оценка через API)
+### 2. GigaChat (оценка через API)
 
 **Префикс:** `[GigaChat]`
 
@@ -133,7 +88,7 @@
 
 **Симптомы:**
 - В логах `[SubmitTranslation]` видно `Suggested new words: []`
-- В логах `[MockLLM]` или `[GigaChat]` нет сообщений о предложении слов
+- В логах `[GigaChat]` нет сообщений о предложении слов
 
 **Возможные причины:**
 1. Все слова переведены правильно
@@ -144,10 +99,9 @@
 **Диагностика:**
 ```bash
 # Проверьте логи
-[MockLLM] ✗ Слово 'run' переведено НЕПРАВИЛЬНО
-[MockLLM] Слова 'run' УЖЕ есть в user_words, не предлагаю
+[GigaChat] ✗ Слово 'run' УЖЕ есть в user_words, не предлагаю
 # или
-[MockLLM] Не могу проверить user_words: db=None, profile_id=None
+[GigaChat] ✗ Слово ID word-999 НЕ найдено в dictionaries
 ```
 
 **Решение:**
@@ -192,7 +146,7 @@
 **Диагностика:**
 ```bash
 # Backend логи
-[MockLLM] ✓✓✓ Добавлено в suggested_new_words: run (word-3)
+[GigaChat] ✓✓✓ Слова 'run' НЕТ в user_words, предлагаю добавить!
 [SubmitTranslation] Suggested new words: ['word-3']
 
 # Frontend консоль
@@ -219,7 +173,7 @@
 
 **Диагностика:**
 ```bash
-[MockLLM] Проверяем наличие слова 'run' в user_words пользователя...
+[GigaChat] Проверяем наличие слова 'run' в user_words пользователя...
 ERROR:    Exception in ASGI application
 sqlalchemy.exc.ProgrammingError: ...
 ```
@@ -258,16 +212,16 @@ logging.basicConfig(
 
 **Успешное предложение слова:**
 ```
-[MockLLM] ✗ Слово 'run' переведено НЕПРАВИЛЬНО
-[MockLLM] Слова 'run' НЕТ в user_words, предлагаем добавить!
-[MockLLM] ✓✓✓ Добавлено в suggested_new_words: run (word-3)
+[GigaChat] ✗ Слово 'run' переведено НЕПРАВИЛЬНО
+[GigaChat] Слова 'run' НЕТ в user_words, предлагаем добавить!
+[GigaChat] ✓✓✓ Добавлено в suggested_new_words: run (word-3)
 [SubmitTranslation] Suggested new words: ['word-3']
 ```
 
 **Слово уже есть в user_words:**
 ```
-[MockLLM] ✗ Слово 'run' переведено НЕПРАВИЛЬНО
-[MockLLM] Слова 'run' УЖЕ есть в user_words, не предлагаю
+[GigaChat] ✗ Слово 'run' переведено НЕПРАВИЛЬНО
+[GigaChat] Слова 'run' УЖЕ есть в user_words, не предлагаю
 ```
 
 **Слово отсутствует в dictionaries:**
@@ -278,7 +232,7 @@ logging.basicConfig(
 
 **Не передаётся profile_id:**
 ```
-[MockLLM] Не могу проверить user_words: db=True, profile_id=None
+[GigaChat] Не могу фильтровать suggested_new_words: db=True, profile_id=None
 ```
 
 ### Шаг 4: Проверьте фронтенд
@@ -287,8 +241,8 @@ logging.basicConfig(
 
 **Успешное добавление:**
 ```
-[Lesson] Marking word as learned: word-3
-[Lesson] Word marked as learned successfully
+[Lesson] Adding word to dictionary: word-3
+[Lesson] Word added successfully
 ```
 
 **Ошибка добавления:**
@@ -323,27 +277,27 @@ SELECT * FROM dictionaries WHERE id = 'word-3';
 [SubmitTranslation] User ID: user-789, Native lang: ru
 [SubmitTranslation] Profile ID: profile-012
 [SubmitTranslation] Вызываю LLM для оценки перевода...
-[MockLLM] === Начало оценки перевода ===
-[MockLLM] Предложение: The quick dog runs
-[MockLLM] Перевод пользователя: быстрый собака
-[MockLLM] Целевых слов: 3
-[MockLLM] Profile ID: profile-012
-[MockLLM] --- Проверка слова: quick (ID: word-1) ---
-[MockLLM] Найдены переводы в БД: ['быстрый', 'скорый']
-[MockLLM] ✓ Слово 'quick' переведено ПРАВИЛЬНО
-[MockLLM] --- Проверка слова: dog (ID: word-2) ---
-[MockLLM] Найдены переводы в БД: ['собака', 'пёс']
-[MockLLM] ✓ Слово 'dog' переведено ПРАВИЛЬНО
-[MockLLM] --- Проверка слова: run (ID: word-3) ---
-[MockLLM] Найдены переводы в БД: ['бежать', 'бегать']
-[MockLLM] ✗ Слово 'run' переведено НЕПРАВИЛЬНО
-[MockLLM] Проверяем наличие слова 'run' в user_words пользователя...
-[MockLLM] Слова 'run' НЕТ в user_words, предлагаем добавить!
-[MockLLM] ✓✓✓ Добавлено в suggested_new_words: run (word-3)
-[MockLLM] === Результат оценки ===
-[MockLLM] Overall correct: False
-[MockLLM] Suggested new words: 1 слов
-[MockLLM] IDs предложенных слов: ['word-3']
+[GigaChat] === Начало оценки перевода ===
+[GigaChat] Предложение: The quick dog runs
+[GigaChat] Перевод пользователя: быстрый собака
+[GigaChat] Целевых слов: 3
+[GigaChat] Profile ID: profile-012
+[GigaChat] --- Проверка слова: quick (ID: word-1) ---
+[GigaChat] Найдены переводы в БД: ['быстрый', 'скорый']
+[GigaChat] ✓ Слово 'quick' переведено ПРАВИЛЬНО
+[GigaChat] --- Проверка слова: dog (ID: word-2) ---
+[GigaChat] Найдены переводы в БД: ['собака', 'пёс']
+[GigaChat] ✓ Слово 'dog' переведено ПРАВИЛЬНО
+[GigaChat] --- Проверка слова: run (ID: word-3) ---
+[GigaChat] Найдены переводы в БД: ['бежать', 'бегать']
+[GigaChat] ✗ Слово 'run' переведено НЕПРАВИЛЬНО
+[GigaChat] Проверяем наличие слова 'run' в user_words пользователя...
+[GigaChat] Слова 'run' НЕТ в user_words, предлагаем добавить!
+[GigaChat] ✓✓✓ Добавлено в suggested_new_words: run (word-3)
+[GigaChat] === Результат оценки ===
+[GigaChat] Overall correct: False
+[GigaChat] Suggested new words: 1 слов
+[GigaChat] IDs предложенных слов: ['word-3']
 [SubmitTranslation] === Результат от LLM ===
 [SubmitTranslation] Overall correct: False
 [SubmitTranslation] Suggested new words: ['word-3']
@@ -356,7 +310,7 @@ SELECT * FROM dictionaries WHERE id = 'word-3';
 - [ ] Frontend открыт с DevTools (Console + Network)
 - [ ] Пользователь выполнил урок с ошибкой
 - [ ] В логах backend видны сообщения `[SubmitTranslation]`
-- [ ] В логах backend видны сообщения `[MockLLM]` или `[GigaChat]`
+- [ ] В логах backend видны сообщения `[GigaChat]`
 - [ ] В логах видны сообщения о проверке `user_words`
 - [ ] В логах видны сообщения о предложении слов (`✓✓✓`)
 - [ ] В ответе API есть `suggested_new_words`

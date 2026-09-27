@@ -44,21 +44,23 @@ async def startup():
     await init_db()
     
     # Проверка конфигурации GigaChat
-    if not settings.USE_MOCK_LLM:
-        logger.info("=" * 70)
-        logger.info("GigaChat API Configuration:")
-        logger.info(f"  Model: {settings.GIGACHAT_MODEL}")
-        logger.info(f"  OAuth URL: {settings.GIGACHAT_OAUTH_URL}")
-        logger.info(f"  API URL: {settings.GIGACHAT_API_URL}")
-        logger.info(f"  Scope: {settings.GIGACHAT_SCOPE}")
-        logger.info("=" * 70)
-        logger.warning("⚠️  Using GigaChat API (real LLM)")
-        logger.warning("⚠️  SSL verification disabled (verify=False) for Sber certificates")
+    logger.info("=" * 70)
+    logger.info("GigaChat API Configuration:")
+    logger.info(f"  Model: {settings.GIGACHAT_MODEL}")
+    logger.info(f"  OAuth URL: {settings.GIGACHAT_OAUTH_URL}")
+    logger.info(f"  API URL: {settings.GIGACHAT_API_URL}")
+    logger.info(f"  Scope: {settings.GIGACHAT_SCOPE}")
+    logger.info("=" * 70)
+    
+    if not settings.GIGACHAT_CREDENTIALS or settings.GIGACHAT_CREDENTIALS == "your-gigachat-credentials-here":
+        logger.error("❌ GIGACHAT_CREDENTIALS not set!")
+        logger.error("❌ Please set GIGACHAT_CREDENTIALS in backend/.env")
+        logger.error("❌ Application will not work without valid credentials")
     else:
-        logger.info("=" * 70)
-        logger.info("Using Mock LLM (no API calls)")
-        logger.info("To use GigaChat, set GIGACHAT_CREDENTIALS in backend/.env")
-        logger.info("=" * 70)
+        logger.info("✅ Using GigaChat API")
+        logger.warning("⚠️  SSL verification disabled (verify=False) for Sber certificates")
+    
+    logger.info("=" * 70)
 
 
 # ==================== SCHEMAS ====================
@@ -101,165 +103,6 @@ class ProfileResponse(BaseModel):
     current_lesson_number: int
     words_per_lesson_limit: int
     daily_lesson_limit: int
-
-
-# ==================== MOCK LLM ====================
-
-class MockLLMService:
-    """Моковый LLM для тестирования без OpenAI API"""
-    
-    @staticmethod
-    async def generate_sentences(word_groups: list, target_lang: str) -> list:
-        """Генерирует простые предложения для каждой группы слов"""
-        sentences = []
-        for group in word_groups:
-            words = [w.lemma for w in group]
-            # Простая логика: объединяем слова в предложение
-            if target_lang == "en":
-                sentence = f"The {' '.join(words)} is here."
-            elif target_lang == "de":
-                sentence = f"Der {' '.join(words)} ist hier."
-            elif target_lang == "es":
-                sentence = f"El {' '.join(words)} está aquí."
-            elif target_lang == "fr":
-                sentence = f"Le {' '.join(words)} est ici."
-            else:
-                sentence = f"{' '.join(words)}."
-            sentences.append(sentence)
-        return sentences
-    
-    @staticmethod
-    async def evaluate_translation(
-        sentence: str, 
-        user_translation: str, 
-        target_words: list,
-        native_lang: str,
-        db: AsyncSession = None,
-        profile_id: str = None
-    ) -> dict:
-        """Проверка перевода с получением переводов из БД и предложением новых слов"""
-        from sqlalchemy import select
-        from models import Dictionary, DictionaryTranslation, UserWord
-        
-        logger.info(f"[MockLLM] === Начало оценки перевода ===")
-        logger.info(f"[MockLLM] Предложение: {sentence}")
-        logger.info(f"[MockLLM] Перевод пользователя: {user_translation}")
-        logger.info(f"[MockLLM] Целевых слов: {len(target_words)}")
-        logger.info(f"[MockLLM] Profile ID: {profile_id}")
-        
-        word_results = []
-        correct_translations = []
-        suggested_new_words = []
-        
-        for word in target_words:
-            word_id = word["id"]
-            lemma = word["lemma"]
-            
-            logger.info(f"[MockLLM] --- Проверка слова: {lemma} (ID: {word_id}) ---")
-            
-            # Получить переводы слова из БД
-            translations = []
-            if db:
-                result = await db.execute(
-                    select(DictionaryTranslation).where(
-                        DictionaryTranslation.dictionary_id == word_id,
-                        DictionaryTranslation.lang == native_lang
-                    )
-                )
-                trans_record = result.scalar_one_or_none()
-                if trans_record and trans_record.translations:
-                    translations = trans_record.translations if isinstance(trans_record.translations, list) else [trans_record.translations]
-                    logger.info(f"[MockLLM] Найдены переводы в БД: {translations}")
-                else:
-                    logger.warning(f"[MockLLM] Переводы НЕ найдены в БД для слова {lemma}")
-            
-            # Если не нашли в БД, используем translations из word (если есть)
-            if not translations:
-                translations = word.get("translations", [])
-                if translations:
-                    logger.info(f"[MockLLM] Используем переводы из target_words: {translations}")
-                else:
-                    logger.warning(f"[MockLLM] Нет переводов для слова {lemma}")
-            
-            # Проверяем, есть ли ПЕРЕВОД слова в ответе пользователя
-            is_correct = False
-            has_typo = False
-            
-            user_trans_lower = user_translation.lower()
-            logger.info(f"[MockLLM] Перевод пользователя (lower): '{user_trans_lower}'")
-            
-            for trans in translations:
-                trans_lower = trans.lower()
-                logger.info(f"[MockLLM] Проверяем перевод: '{trans_lower}'")
-                if trans_lower in user_trans_lower:
-                    is_correct = True
-                    logger.info(f"[MockLLM] ✓ Слово '{lemma}' переведено ПРАВИЛЬНО (найдено '{trans}')")
-                    break
-                # Проверка на опечатку (расстояние Левенштейна <= 2)
-                elif len(trans_lower) > 3:
-                    # Простая проверка: если слова похожи
-                    if any(word_part in user_trans_lower for word_part in [trans_lower[:3], trans_lower[-3:]]):
-                        has_typo = True
-                        is_correct = True
-                        logger.info(f"[MockLLM] ✓ Слово '{lemma}' переведено с ОПЕЧАТКОЙ (найдено похожее '{trans}')")
-                        break
-            
-            if not is_correct:
-                logger.warning(f"[MockLLM] ✗ Слово '{lemma}' переведено НЕПРАВИЛЬНО")
-            
-            word_results.append({
-                "word_id": word_id,
-                "lemma": lemma,
-                "translation": translations[0] if translations else "N/A",
-                "is_correct": is_correct,
-                "has_typo": has_typo
-            })
-            
-            if translations:
-                correct_translations.append(f"{lemma} = {translations[0]}")
-            
-            # Если слово переведено неправильно, предлагаем его для добавления
-            if not is_correct:
-                logger.info(f"[MockLLM] Слово '{lemma}' переведено неправильно, проверяем возможность предложения...")
-                if db and profile_id:
-                    logger.info(f"[MockLLM] Проверяем наличие слова '{lemma}' в user_words пользователя...")
-                    # Проверяем, есть ли это слово уже в user_words
-                    existing_result = await db.execute(
-                        select(UserWord).where(
-                            UserWord.user_language_profile_id == profile_id,
-                            UserWord.dictionary_id == word_id
-                        )
-                    )
-                    existing_word = existing_result.scalar_one_or_none()
-                    
-                    if existing_word:
-                        logger.info(f"[MockLLM] Слово '{lemma}' УЖЕ есть в user_words, не предлагаем")
-                    else:
-                        logger.info(f"[MockLLM] Слова '{lemma}' НЕТ в user_words, предлагаем добавить!")
-                        # Если слова нет в user_words, предлагаем его добавить
-                        suggested_new_words.append(word_id)
-                        logger.info(f"[MockLLM] ✓✓✓ Добавлено в suggested_new_words: {lemma} ({word_id})")
-                else:
-                    logger.warning(f"[MockLLM] Не могу проверить user_words: db={db is not None}, profile_id={profile_id}")
-        
-        overall_correct = all(w["is_correct"] for w in word_results)
-        
-        # Генерируем правильный перевод предложения
-        correct_translation = f"{sentence} → {'; '.join(correct_translations)}"
-        
-        logger.info(f"[MockLLM] === Результат оценки ===")
-        logger.info(f"[MockLLM] Overall correct: {overall_correct}")
-        logger.info(f"[MockLLM] Suggested new words: {len(suggested_new_words)} слов")
-        if suggested_new_words:
-            logger.info(f"[MockLLM] IDs предложенных слов: {suggested_new_words}")
-        logger.info(f"[MockLLM] === Конец оценки перевода ===")
-        
-        return {
-            "word_results": word_results,
-            "suggested_new_words": suggested_new_words,
-            "overall_correct": overall_correct,
-            "correct_translation": correct_translation
-        }
 
 
 # ==================== GIGACHAT LLM ====================
@@ -654,8 +497,8 @@ class GigaChatService:
             }
 
 
-# Выбрать LLM сервис
-LLMService = MockLLMService if settings.USE_MOCK_LLM else GigaChatService
+# Всегда используем GigaChat
+LLMService = GigaChatService
 
 
 # ==================== AUTH ====================

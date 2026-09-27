@@ -60,7 +60,7 @@ npm install
 npm run dev
 ```
 
-Приложение работает полностью автономно с моковыми данными.
+Приложение работает с базой данных PostgreSQL и GigaChat API.
 
 ### Backend (полный стек)
 
@@ -83,8 +83,8 @@ python main.py
 ```
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/lingoflow
 SECRET_KEY=your-secret-key
-OPENAI_API_KEY=sk-your-openai-key
-OPENAI_MODEL=gpt-4o-mini
+GIGACHAT_CREDENTIALS=Basic your-credentials-here
+GIGACHAT_MODEL=GigaChat-2-Max
 ```
 
 ## 🗄️ Схема БД

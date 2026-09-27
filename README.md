@@ -82,7 +82,7 @@ Copy-Item .env.example .env
 notepad .env
 # Указать:
 # DATABASE_URL=postgresql+asyncpg://lingoflow:password@server-ip:5432/lingoflow
-# OPENAI_API_KEY=sk-... (или оставить пустым для мокового режима)
+# GIGACHAT_CREDENTIALS=Basic your-credentials-here
 
 # Запустить сервер
 python main.py
@@ -104,7 +104,7 @@ cp .env.example .env
 nano .env
 # Указать:
 # DATABASE_URL=postgresql+asyncpg://lingoflow:password@server-ip:5432/lingoflow
-# OPENAI_API_KEY=sk-... (или оставить пустым для мокового режима)
+# GIGACHAT_CREDENTIALS=Basic your-credentials-here
 
 # Запустить сервер
 python main.py
@@ -122,21 +122,15 @@ npm run dev
 
 Frontend будет доступен на `http://localhost:5173`
 
-## 📋 Режимы работы
+## 🤖 LLM интеграция
 
-### Моковый режим (без GigaChat API)
+Приложение использует GigaChat API для:
+- Генерации осмысленных предложений через GigaChat-2-Max
+- Оценки переводов с учётом контекста
+- Поддержки typo-tolerance
+- Предложения новых слов для изучения
 
-Если `GIGACHAT_CREDENTIALS` не указан или равен `your-gigachat-credentials-here`, приложение автоматически использует моковый LLM:
-- Генерирует простые предложения
-- Проверяет переводы по простому алгоритму
-- Работает полностью локально
-
-### Реальный режим (с GigaChat API)
-
-Если указан валидный `GIGACHAT_CREDENTIALS`:
-- Генерирует осмысленные предложения через GigaChat-2-Max
-- Оценивает переводы с учётом контекста
-- Поддерживает typo-tolerance
+**Важно:** Для работы приложения необходимо указать валидный `GIGACHAT_CREDENTIALS` в файле `backend/.env`.
 
 ## 📚 Пополнение словаря
 
@@ -293,9 +287,9 @@ SECRET_KEY=your-random-secret-key
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
-# OpenAI API (опционально)
-OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-mini
+# GigaChat API (обязательно)
+GIGACHAT_CREDENTIALS=Basic your-credentials-here
+GIGACHAT_MODEL=GigaChat-2-Max
 ```
 
 ## 🐛 Troubleshooting
@@ -311,6 +305,7 @@ OPENAI_MODEL=gpt-4o-mini
 - Проверьте консоль браузера на ошибки
 
 ### LLM не работает
-- Проверьте `OPENAI_API_KEY` в `.env`
-- Или оставьте пустым для мокового режима
-- Проверьте `USE_MOCK_LLM` в `config.py`
+- Проверьте `GIGACHAT_CREDENTIALS` в `.env`
+- Убедитесь, что credentials действительны
+- Проверьте логи backend на наличие ошибок API
+- Проверьте доступ к `https://api.giga.chat`
