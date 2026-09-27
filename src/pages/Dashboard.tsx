@@ -210,30 +210,7 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Recent Words */}
-        {userWords.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Последние слова</h2>
-            <div className="flex flex-wrap gap-2">
-              {userWords.slice(-10).reverse().map((uw: any) => {
-                const dict = getDictionary(profile?.targetLang || 'en').find(d => d.id === uw.dictionary_id);
-                return dict ? (
-                  <div
-                    key={uw.id}
-                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm"
-                  >
-                    <span className="font-medium text-gray-900">{dict.lemma}</span>
-                    <span className="text-gray-400 ml-2">• ст.{uw.stage}</span>
-                  </div>
-                ) : null;
-              })}
-            </div>
-          </motion.div>
-        )}
+
       </div>
     </div>
   );

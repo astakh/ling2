@@ -273,7 +273,7 @@ export default function Lesson() {
           className="mb-8"
         >
           <div className="text-xs text-gray-400 mb-3 uppercase tracking-wider font-medium">
-            Переведи эти слова
+            Слова в упражнении
           </div>
           <div className="flex flex-wrap gap-2">
             {targetWords.map(word => {
