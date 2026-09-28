@@ -30,13 +30,33 @@ export default function Lesson() {
 
   useEffect(() => {
     const lessonData = sessionStorage.getItem('currentLesson');
+    const profileId = localStorage.getItem('currentProfileId');
+    
     if (lessonData) {
       const session = JSON.parse(lessonData);
       setupLesson(session);
+    } else if (profileId) {
+      // Если нет данных урока, но есть профиль - создаём новый урок
+      loadLessonFromProfile(profileId);
     } else {
       navigate('/dashboard');
     }
   }, []);
+
+  const loadLessonFromProfile = async (profileId: string) => {
+    try {
+      const session = await startLesson(true);
+      if (session) {
+        sessionStorage.setItem('currentLesson', JSON.stringify(session));
+        setupLesson(session);
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      console.error('Failed to start lesson:', error);
+      navigate('/dashboard');
+    }
+  };
 
   const [todayWords, setTodayWords] = useState<DictionaryWord[]>([]);
 

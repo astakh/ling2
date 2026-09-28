@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Loader2 } from 'lucide-react';
-import { registerUser, setupProfile } from '../services/api';
-import { saveUser, saveProfile } from '../store';
+import { ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { getUser, saveProfile } from '../store';
+import { setupProfile, getDictionaryCategories } from '../services/api';
 import { Language, CEFRLevel } from '../types';
 
 const languages = [
@@ -11,12 +11,6 @@ const languages = [
   { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
   { code: 'es', name: 'Español', flag: '🇪🇸' },
   { code: 'fr', name: 'Français', flag: '🇫🇷' },
-];
-
-const nativeLanguages = [
-  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'uk', name: 'Українська', flag: '🇺🇦' },
 ];
 
 const levels: { code: CEFRLevel; name: string; desc: string }[] = [
@@ -33,58 +27,56 @@ const intensities = [
   { value: 10, name: 'Максимальная', desc: '10 слов за урок' },
 ];
 
-export default function Onboarding() {
+interface DictionaryCategory {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  word_count: number;
+}
+
+export default function AddLanguage() {
   const navigate = useNavigate();
+  const user = getUser();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [userId, setUserId] = useState('');
-  
-  const [nativeLang, setNativeLang] = useState<Language>('ru');
   const [targetLang, setTargetLang] = useState<Language>('en');
   const [level, setLevel] = useState<CEFRLevel>('A1');
   const [intensity, setIntensity] = useState(5);
   const [dictionaryCategory, setDictionaryCategory] = useState('general');
+  const [categories, setCategories] = useState<DictionaryCategory[]>([]);
 
-  const handleRegister = async () => {
-    if (!name.trim() || !email.trim()) {
-      setError('Заполните все поля');
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    
+  useEffect(() => {
+    loadCategories();
+  }, [targetLang]);
+
+  const loadCategories = async () => {
     try {
-      const user = await registerUser(name, email);
-      setUserId(user.id);
-      saveUser({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        nativeLang: 'ru',
-        timezone: 'UTC',
-        createdAt: new Date().toISOString(),
-      });
-      setStep(1);
+      const response = await getDictionaryCategories(targetLang);
+      setCategories(response.categories || []);
+      if (response.categories && response.categories.length > 0) {
+        setDictionaryCategory(response.categories[0].id);
+      }
     } catch (err) {
-      setError('Ошибка регистрации');
-    } finally {
-      setLoading(false);
+      console.error('Failed to load categories:', err);
     }
   };
 
   const handleComplete = async () => {
+    if (!user) {
+      setError('Пользователь не найден');
+      return;
+    }
+
     setLoading(true);
     setError('');
     
     try {
       const profile = await setupProfile(
-        userId,
-        nativeLang,
+        user.id,
+        'ru', // native lang
         targetLang,
         level,
         intensity,
@@ -106,104 +98,16 @@ export default function Onboarding() {
       navigate('/dashboard');
     } catch (err) {
       setError('Ошибка сохранения профиля');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   const steps = [
-    // Step 0: Welcome + Name & Email
+    // Step 0: Choose Language
     <motion.div
-      key="welcome"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="space-y-6 max-w-md mx-auto"
-    >
-      <div className="text-center space-y-3 mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">LingoFlow</h1>
-        <p className="text-lg text-gray-500">
-          Учи слова в контексте живых предложений
-        </p>
-      </div>
-      
-      <div className="space-y-4">
-        <input
-          type="text"
-          placeholder="Ваше имя"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="input"
-        />
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="input"
-        />
-        
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-        
-        <button
-          onClick={handleRegister}
-          disabled={!name.trim() || !email.trim() || loading}
-          className="btn-primary w-full"
-        >
-          {loading ? (
-            <div className="flex items-center justify-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Регистрация...
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-2">
-              Начать <ChevronRight className="w-5 h-5" />
-            </div>
-          )}
-        </button>
-      </div>
-    </motion.div>,
-
-    // Step 1: Native Language
-    <motion.div
-      key="native"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="space-y-6 max-w-md mx-auto"
-    >
-      <h2 className="text-2xl font-bold text-center text-gray-900">Ваш родной язык?</h2>
-      <div className="space-y-2">
-        {nativeLanguages.map(lang => (
-          <button
-            key={lang.code}
-            onClick={() => setNativeLang(lang.code as Language)}
-            className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-3 ${
-              nativeLang === lang.code
-                ? 'border-gray-900 bg-gray-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <span className="text-2xl">{lang.flag}</span>
-            <span className="font-semibold text-gray-900">{lang.name}</span>
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={() => setStep(2)}
-        className="btn-primary w-full"
-      >
-        Далее
-      </button>
-    </motion.div>,
-
-    // Step 2: Target Language
-    <motion.div
-      key="target"
+      key="lang"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
@@ -215,26 +119,26 @@ export default function Onboarding() {
           <button
             key={lang.code}
             onClick={() => setTargetLang(lang.code as Language)}
-            className={`p-4 rounded-xl border-2 transition-all ${
+            className={`p-6 rounded-xl border-2 transition-all ${
               targetLang === lang.code
                 ? 'border-gray-900 bg-gray-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
-            <div className="text-3xl mb-1">{lang.flag}</div>
+            <div className="text-4xl mb-2">{lang.flag}</div>
             <div className="font-semibold text-gray-900">{lang.name}</div>
           </button>
         ))}
       </div>
       <button
-        onClick={() => setStep(3)}
+        onClick={() => setStep(1)}
         className="btn-primary w-full"
       >
         Далее
       </button>
     </motion.div>,
 
-    // Step 3: Level
+    // Step 1: Choose Level
     <motion.div
       key="level"
       initial={{ opacity: 0, y: 10 }}
@@ -260,14 +164,64 @@ export default function Onboarding() {
         ))}
       </div>
       <button
-        onClick={() => setStep(4)}
+        onClick={() => setStep(2)}
         className="btn-primary w-full"
       >
         Далее
       </button>
     </motion.div>,
 
-    // Step 4: Intensity
+    // Step 2: Choose Dictionary
+    <motion.div
+      key="dict"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="space-y-6 max-w-md mx-auto"
+    >
+      <h2 className="text-2xl font-bold text-center text-gray-900">Выберите словарь</h2>
+      <p className="text-center text-gray-500">Какой тип слов вы хотите изучать?</p>
+      
+      {categories.length === 0 ? (
+        <div className="text-center py-8 text-gray-400">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+          Загрузка словарей...
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setDictionaryCategory(cat.id)}
+              className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                dictionaryCategory === cat.id
+                  ? 'border-gray-900 bg-gray-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="text-3xl">{cat.icon}</div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900">{cat.name}</div>
+                  <div className="text-sm text-gray-500 mb-1">{cat.description}</div>
+                  <div className="text-xs text-gray-400">{cat.word_count} слов</div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      
+      <button
+        onClick={() => setStep(3)}
+        disabled={categories.length === 0}
+        className="btn-primary w-full disabled:opacity-50"
+      >
+        Далее
+      </button>
+    </motion.div>,
+
+    // Step 3: Intensity
     <motion.div
       key="intensity"
       initial={{ opacity: 0, y: 10 }}
@@ -305,18 +259,39 @@ export default function Onboarding() {
         disabled={loading}
         className="btn-primary w-full"
       >
-        {loading ? 'Сохранение...' : 'Начать обучение'}
+        {loading ? (
+          <div className="flex items-center justify-center gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Создание...
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-2">
+            Создать профиль <ChevronRight className="w-5 h-5" />
+          </div>
+        )}
       </button>
     </motion.div>,
   ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen">
+      <div className="max-w-lg mx-auto px-6 py-12">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <button
+            onClick={() => step > 0 ? setStep(step - 1) : navigate('/dashboard')}
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-bold text-gray-900">Добавить язык</h1>
+        </div>
+
         <AnimatePresence mode="wait">
           {steps[step]}
         </AnimatePresence>
         
+        {/* Progress dots */}
         <div className="flex justify-center gap-2 mt-8">
           {steps.map((_, i) => (
             <div

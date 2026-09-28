@@ -7,6 +7,8 @@ import LessonReview from './pages/LessonReview';
 import LessonComplete from './pages/LessonComplete';
 import Vocabulary from './pages/Vocabulary';
 import Profile from './pages/Profile';
+import AddLanguage from './pages/AddLanguage';
+import LanguagePage from './pages/LanguagePage';
 
 function App() {
   const user = getUser();
@@ -44,6 +46,14 @@ function App() {
           <Route 
             path="/profile" 
             element={user ? <Profile /> : <Navigate to="/onboarding" />} 
+          />
+          <Route 
+            path="/add-language" 
+            element={user ? <AddLanguage /> : <Navigate to="/onboarding" />} 
+          />
+          <Route 
+            path="/language/:profileId" 
+            element={user ? <LanguagePage /> : <Navigate to="/onboarding" />} 
           />
           <Route path="*" element={<Navigate to={user ? "/dashboard" : "/onboarding"} />} />
         </Routes>

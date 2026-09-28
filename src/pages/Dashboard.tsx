@@ -1,84 +1,88 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, RotateCcw, BookOpen, Target, TrendingUp, Flame } from 'lucide-react';
-import { getUser, getProfile, getStats, resetAll } from '../store';
-import { startLesson } from '../services/lessonService';
-import { fetchUserWords, fetchStats } from '../services/lessonService';
-import { getDictionary } from '../data/dictionaries';
+import { Plus, Settings, RotateCcw } from 'lucide-react';
+import { getUser, resetAll } from '../store';
+import { getUserProfiles } from '../services/api';
 import Toast, { ToastType } from '../components/Toast';
 
 const langNames: Record<string, string> = {
-  en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ru: 'Русский'
+  en: 'English',
+  de: 'Deutsch',
+  es: 'Español',
+  fr: 'Français',
 };
+
+const langFlags: Record<string, string> = {
+  en: '🇬🇧',
+  de: '🇩🇪',
+  es: '🇪🇸',
+  fr: '🇫🇷',
+};
+
+interface LanguageProfile {
+  id: string;
+  target_lang: string;
+  cefr_level: string;
+  dictionary_category: string;
+  dictionary_name: string;
+  dictionary_icon: string;
+  words_per_lesson_limit: number;
+  daily_lesson_limit: number;
+  current_lesson_number: number;
+  total_words: number;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const user = getUser();
-  const profile = getProfile();
-  const [stats, setStats] = useState<any>(null);
-  const [userWords, setUserWords] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<LanguageProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   useEffect(() => {
-    loadData();
+    loadProfiles();
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    const [statsData, wordsData] = await Promise.all([
-      fetchStats(),
-      fetchUserWords(),
-    ]);
-    setStats(statsData);
-    setUserWords(wordsData);
-    setLoading(false);
-  };
-
-  const handleStartLesson = async () => {
-    setToast(null);
+  const loadProfiles = async () => {
+    if (!user) return;
     
+    setLoading(true);
     try {
-      const session = await startLesson(true);
-      
-      if (!session) {
-        setToast({ message: 'Не удалось начать урок', type: 'error' });
-        return;
-      }
-      
-      sessionStorage.setItem('currentLesson', JSON.stringify(session));
-      navigate('/lesson');
-    } catch (error: any) {
-      if (error.message && error.message.includes('429')) {
-        const match = error.message.match(/Дневной лимит уроков достигнут:.*$/);
-        setToast({ message: match ? match[0] : 'Дневной лимит достигнут', type: 'info' });
-      } else {
-        setToast({ message: 'Не удалось начать урок', type: 'error' });
-      }
+      const response = await getUserProfiles(user.id);
+      setProfiles(response.profiles || []);
+    } catch (error) {
+      console.error('Failed to load profiles:', error);
+      setToast({ message: 'Не удалось загрузить профили', type: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleReset = () => {
-    if (confirm('Сбросить все данные?')) {
+    if (confirm('Сбросить все данные? Это действие необратимо.')) {
       resetAll();
       navigate('/onboarding');
     }
   };
 
+  const handleStartLesson = (profileId: string) => {
+    // Сохраняем выбранный профиль в localStorage
+    localStorage.setItem('currentProfileId', profileId);
+    navigate('/lesson');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Загрузка...</div>
+        <div className="text-gray-400">Загрузка...</div>
       </div>
     );
   }
 
-  const activeWords = userWords.filter((w: any) => w.status === 'active').length;
-
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-6 py-12">
+      <div className="max-w-4xl mx-auto px-6 py-12">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -87,100 +91,30 @@ export default function Dashboard() {
         >
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              Привет, {user?.name}
+              Привет, {user?.name} 👋
             </h1>
             <p className="text-gray-500 mt-1">
-              {langNames[profile?.targetLang || 'en']} • {profile?.cefrLevel}
+              {profiles.length > 0 
+                ? `${profiles.length} ${profiles.length === 1 ? 'язык' : 'языков'} в изучении`
+                : 'Начните изучение нового языка'}
             </p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => navigate('/profile')}
               className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              title="Настройки"
             >
               <Settings className="w-5 h-5" />
             </button>
             <button
               onClick={handleReset}
               className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              title="Сбросить данные"
             >
               <RotateCcw className="w-5 h-5" />
             </button>
           </div>
-        </motion.div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="card p-6"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <Flame className="w-5 h-5 text-orange-500" />
-              <span className="text-sm text-gray-500">Стрик</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{stats?.current_streak || 0}</div>
-            <div className="text-xs text-gray-400 mt-1">дней подряд</div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="card p-6"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <BookOpen className="w-5 h-5 text-blue-500" />
-              <span className="text-sm text-gray-500">Уроки</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{stats?.total_lessons_completed || 0}</div>
-            <div className="text-xs text-gray-400 mt-1">всего пройдено</div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="card p-6"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <Target className="w-5 h-5 text-green-500" />
-              <span className="text-sm text-gray-500">Слова</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{activeWords}</div>
-            <div className="text-xs text-gray-400 mt-1">в изучении</div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-            className="card p-6"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <TrendingUp className="w-5 h-5 text-purple-500" />
-              <span className="text-sm text-gray-500">Изучено</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{stats?.total_words_learned || 0}</div>
-            <div className="text-xs text-gray-400 mt-1">всего слов</div>
-          </motion.div>
-        </div>
-
-        {/* Start Lesson Button */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mb-8"
-        >
-          <button
-            onClick={handleStartLesson}
-            className="btn-primary w-full text-lg"
-          >
-            Начать урок
-          </button>
         </motion.div>
 
         <AnimatePresence>
@@ -193,24 +127,83 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* Vocabulary Link */}
-        {userWords.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-            className="mb-8"
-          >
-            <button
-              onClick={() => navigate('/vocabulary')}
-              className="btn-secondary w-full"
-            >
-              Мой словарь ({userWords.length})
-            </button>
-          </motion.div>
+        {/* Language Cards */}
+        {profiles.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            {profiles.map((profile, index) => (
+              <motion.div
+                key={profile.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="card p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate(`/language/${profile.id}`)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="text-4xl">
+                      {langFlags[profile.target_lang] || '🌍'}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">
+                        {langNames[profile.target_lang] || profile.target_lang}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        {profile.cefr_level} • {profile.dictionary_icon} {profile.dictionary_name}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {profile.total_words}
+                    </div>
+                    <div className="text-xs text-gray-500">Слов</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {profile.current_lesson_number}
+                    </div>
+                    <div className="text-xs text-gray-500">Уроков</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {profile.words_per_lesson_limit}
+                    </div>
+                    <div className="text-xs text-gray-500">Слов/урок</div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStartLesson(profile.id);
+                  }}
+                  className="btn-primary w-full"
+                >
+                  Начать урок
+                </button>
+              </motion.div>
+            ))}
+          </div>
         )}
 
-
+        {/* Add Language Button */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: profiles.length * 0.1 }}
+        >
+          <button
+            onClick={() => navigate('/add-language')}
+            className="card p-8 w-full hover:shadow-lg transition-shadow flex items-center justify-center gap-3 text-gray-500 hover:text-gray-900"
+          >
+            <Plus className="w-6 h-6" />
+            <span className="text-lg font-medium">Добавить новый язык</span>
+          </button>
+        </motion.div>
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ export interface Profile {
   current_lesson_number: number;
   words_per_lesson_limit: number;
   daily_lesson_limit: number;
+  dictionary_category?: string;
 }
 
 export interface Stats {
@@ -126,6 +127,18 @@ export async function getUser(userId: string): Promise<User> {
   return request<User>(`/user/${userId}`);
 }
 
+export async function getUserProfiles(userId: string): Promise<{ profiles: any[] }> {
+  return request<{ profiles: any[] }>(`/user/profiles?user_id=${userId}`);
+}
+
+export async function getDictionaryCategories(targetLang: string): Promise<{ categories: any[] }> {
+  return request<{ categories: any[] }>(`/dictionary-categories?target_lang=${targetLang}`);
+}
+
+export async function getLanguageStats(profileId: string): Promise<any> {
+  return request<any>(`/language-stats/${profileId}`);
+}
+
 // ==================== PROFILE ====================
 
 export async function setupProfile(
@@ -133,7 +146,8 @@ export async function setupProfile(
   nativeLang: string,
   targetLang: string,
   cefrLevel: string,
-  wordsPerLessonLimit: number
+  wordsPerLessonLimit: number,
+  dictionaryCategory: string = 'general'
 ): Promise<Profile> {
   return request<Profile>('/profile/setup', {
     method: 'POST',
@@ -143,6 +157,7 @@ export async function setupProfile(
       target_lang: targetLang,
       cefr_level: cefrLevel,
       words_per_lesson_limit: wordsPerLessonLimit,
+      dictionary_category: dictionaryCategory,
     }),
   });
 }
